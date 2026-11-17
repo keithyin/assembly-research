@@ -892,6 +892,21 @@ function renderGraphSVG(g, o){
     + edgesSvg + nodesSvg + `</svg>`;
 }
 
+/* 自动跟随：把当前节点（.n-cur）水平滚动进 .svg-wrap 的视野中央。
+   图按层布局（每层 150px），宽图会溢出容器（overflow-x:auto）——
+   自动播放/单步时若不跟随，欧拉路径走到右半部分就看不见了。
+   直接赋值 scrollLeft（嵌入式浏览器会忽略 behavior:'smooth' 的 scrollTo）。 */
+function followCurrentNode(wrap){
+  if(!wrap) return;
+  const cur = wrap.querySelector('.node.n-cur');
+  if(!cur) return;
+  const wr = wrap.getBoundingClientRect(), cr = cur.getBoundingClientRect();
+  const target = wrap.scrollLeft + (cr.left + cr.width / 2 - (wr.left + wr.width / 2));
+  const max = wrap.scrollWidth - wrap.clientWidth;
+  const next = Math.max(0, Math.min(target, max));
+  if(Math.abs(next - wrap.scrollLeft) > 1) wrap.scrollLeft = Math.round(next);
+}
+
 /* generic interactive graph widget with Euler-path player */
 function createWidget(rootId, buildFn){
   const root = document.getElementById(rootId);
@@ -936,6 +951,7 @@ function createWidget(rootId, buildFn){
     const curN = eu.nodeSeq.length ? eu.nodeSeq[Math.min(S.pos, eu.nodeSeq.length - 1)] : undefined;
     const spelled = eu.spelled.slice(0, eu.startSeq.length + S.pos);
     q('.svg-wrap').innerHTML = renderGraphSVG(d.g, Object.assign({visited, currentEdge:curE, currentNode:curN}, d.svgOpts || {}));
+    followCurrentNode(q('.svg-wrap'));
     let html = `<div class="spell">拼出: <code>${escHtml(spelled) || '（空）'}</code> <span class="muted">第 ${S.pos}/${N} 步</span></div>`;
     if(S.pos >= N && !eu.complete){
       html += warnBox(`⚠ 图不连通：欧拉路径只走完了 ${N - eu.remaining} 条边，还有 <b>${eu.remaining} 条边</b>无法到达。` +
@@ -1297,6 +1313,7 @@ function diffBox(genome, got){
   function render(){
     q('.stage-body').innerHTML = stageHTML();
     q('.viz-out').innerHTML = outHTML();
+    followCurrentNode(q('.stage-body .svg-wrap'));
     q('.stage-ind').textContent = stage < 5
       ? `第 ${stage + 1} / 5 步 · ${NAMES[stage]}`
       : `第 6 / 6 步 · 欧拉路径（${sub}/${NEDGE}）`;
@@ -1460,6 +1477,7 @@ function diffBox(genome, got){
   function render(){
     q('.stage-body').innerHTML = stageHTML();
     q('.viz-out').innerHTML = outHTML();
+    followCurrentNode(q('.stage-body .svg-wrap'));
     q('.stage-ind').textContent = stage < 5
       ? `第 ${stage + 1} / 5 步 · ${NAMES[stage]}`
       : `第 6 / 6 步 · 欧拉路径（${sub}/${NSUB}）`;
@@ -1577,12 +1595,15 @@ function diffBox(genome, got){
   function renderAt(i){
     const g = S.g, reads = S.reads;
     const cur = i >= 0 && i < S.attempts.length ? S.attempts[i] : null;
+    const curNode = cur ? (cur.ok ? cur.order[cur.order.length - 1] : cur.order[cur.breakIdx]) : undefined;
     lSvg.innerHTML = renderGraphSVG(g, {
       nodeClassFn: nodeCls(cur),
       visited: cur ? new Set(cur.edgePath) : new Set(),
+      currentNode: curNode,
       tipFn: n => `read #${n.key + 1}: ${n.seq}${n.dup ? '（重复拷贝）' : ''}\n入边 ${n.inE} / 出边 ${n.outE}`,
       edgeTipFn: e => `read "${S.reads[e.from]}" 的后 ${e.ov} bp 与\nread "${S.reads[e.to]}" 的前 ${e.ov} bp 相同\n（重叠 ≥ ${MIN_OV} bp 才连边）`
     });
+    followCurrentNode(lSvg);
     let h = '';
     if(!cur){
       h += chips([
