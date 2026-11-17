@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ABruijn 算法交互详解 · Assembly of long error-prone reads using de Bruijn graphs (PNAS 2016)</title>
+<style>
+:root{--bg:#f6f7fb;--card:#ffffff;--ink:#1f2937;--mut:#6b7280;--acc:#4f46e5;--accL:#eef2ff;--ok:#16a34a;--warn:#d97706;--bad:#dc2626;--line:#e5e7eb;--teal:#0d9488}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:16px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+.hero{background:linear-gradient(135deg,#312e81 0%,#4f46e5 55%,#7c3aed 100%);color:#fff;padding:46px 0 34px}
+.hero h1{margin:0 0 6px;font-size:26px;line-height:1.4}
+.hero .sub{font-size:16px;opacity:.92;margin-bottom:4px}
+.hero .meta{font-size:13.5px;opacity:.8}
+.badges{margin-top:14px;display:flex;flex-wrap:wrap;gap:8px}
+.badge{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.35);padding:3px 12px;border-radius:999px;font-size:13px}
+.tldr{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:22px}
+.tldr .card{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);border-radius:10px;padding:12px 14px;font-size:14px}
+.tldr .card b{display:block;margin-bottom:4px;font-size:14.5px}
+nav#topnav{position:sticky;top:0;z-index:60;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+nav#topnav .wrap{display:flex;gap:4px;overflow-x:auto;padding:8px 20px}
+nav#topnav a{white-space:nowrap;text-decoration:none;color:var(--mut);font-size:13.5px;padding:4px 10px;border-radius:8px}
+nav#topnav a.active{background:var(--accL);color:var(--acc);font-weight:600}
+section{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px 28px;margin:30px 0;scroll-margin-top:72px}
+section>h2{margin:0 0 4px;font-size:21px;color:var(--acc)}
+section h3{font-size:17px;margin:22px 0 8px}
+.figtag{display:inline-block;background:var(--accL);color:var(--acc);font-size:12px;padding:2px 10px;border-radius:999px;margin-left:8px;vertical-align:middle;font-weight:600}
+p.lead{color:var(--mut);font-size:14.5px;margin:2px 0 14px}
+.fig{background:#fafafa;border:1px solid var(--line);border-radius:12px;padding:16px;margin:16px 0}
+.fig .cap{font-size:13px;color:var(--mut);margin-top:10px}
+.ctrl{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:10px 0}
+.btn{background:var(--acc);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:14px;cursor:pointer}
+.btn:hover{filter:brightness(1.08)}
+.btn.ghost{background:#fff;color:var(--acc);border:1px solid var(--acc)}
+.btn.mini{padding:4px 10px;font-size:12.5px;border-radius:6px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.sld{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--mut)}
+.sld b{color:var(--ink);min-width:52px;display:inline-block}
+input[type=range]{accent-color:var(--acc);width:170px}
+.chip{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12.5px;font-weight:600}
+.chip.ok{background:#dcfce7;color:#15803d}.chip.bad{background:#fee2e2;color:#b91c1c}.chip.warn{background:#fef3c7;color:#b45309}.chip.info{background:var(--accL);color:var(--acc)}
+.stepcap{background:var(--accL);border-left:3px solid var(--acc);padding:9px 14px;border-radius:8px;font-size:14.5px;margin-top:10px;min-height:44px}
+details{margin:12px 0;border:1px solid var(--line);border-radius:10px;padding:0;background:#fcfcfd}
+details summary{cursor:pointer;padding:10px 16px;font-weight:600;font-size:14.5px;color:var(--acc);user-select:none}
+details .body{padding:2px 18px 14px;font-size:14.5px}
+details .body ul{padding-left:22px;margin:8px 0}
+table.data{border-collapse:collapse;margin:10px 0;font-size:13.5px;background:#fff}
+table.data td,table.data th{border:1px solid var(--line);padding:4px 9px;text-align:center}
+table.data th{background:var(--accL);color:var(--acc)}
+table.data tr.win{background:#f0fdf4;font-weight:600}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.grid2{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}
+.grid2>.panel{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:13.5px}
+.panel .kv{display:flex;justify-content:space-between;margin:4px 0;border-bottom:1px dashed var(--line);padding-bottom:3px}
+.panel .kv b{font-variant-numeric:tabular-nums}
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch;margin:14px 0}
+.fnode{flex:1;min-width:96px;background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:9px 8px;text-align:center;font-size:12.8px;cursor:pointer;position:relative;transition:.15s}
+.fnode b{display:block;font-size:13.5px}
+.fnode:hover{border-color:var(--acc)}
+.fnode.on{border-color:var(--acc);background:var(--accL);box-shadow:0 0 0 2px var(--accL)}
+.fnode .m1,.fnode .m2{font-size:11px;color:var(--mut);display:block;margin-top:3px}
+.farrow{align-self:center;color:var(--mut);font-size:16px}
+.svgbox{background:#fff;border:1px solid var(--line);border-radius:10px;overflow-x:auto}
+.svgbox svg{display:block}
+.small{font-size:13px;color:var(--mut)}
+.legend{display:flex;flex-wrap:wrap;gap:10px;font-size:12.5px;color:var(--mut);margin-top:8px}
+.legend .sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+.footer{padding:30px 0 50px;color:var(--mut);font-size:13.5px}
+a{color:var(--acc)}
+.alignT{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;border-collapse:collapse}
+.alignT td{padding:1px 3px;text-align:center;min-width:17px}
+.c-sub{background:#fef3c7;color:#92400e;border-radius:3px}
+.c-del{background:#fee2e2;color:#b91c1c;text-decoration:line-through}
+.c-ins{color:#2563eb;font-weight:700;background:#dbeafe;border-radius:3px}
+.c-lm{color:#7c3aed;font-weight:800}
+.neckB{font-size:11px;color:#fff;text-align:center;border-radius:6px;padding:1px 0}
+.medal{background:#dcfce7;color:#15803d;font-weight:700}
+.logbox{background:#0f172a;color:#d1d5db;border-radius:10px;padding:10px 14px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;max-height:210px;overflow-y:auto;margin-top:10px}
+.logbox .up{color:#4ade80}.logbox .hl{color:#fbbf24}
+@media (max-width:860px){.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="sub">交互式算法详解 · 长错误读段组装系列 ①</div>
+    <h1>Assembly of Long Error-Prone Reads Using de Bruijn Graphs</h1>
+    <div class="meta">Yu Lin, Jeffrey Yuan, Mikhail Kolmogorov, Max W. Shen, Mark Chaisson, Pavel A. Pevzner · PNAS 113(49), 2016 · <b>ABruijn 组装器</b></div>
+    <div class="badges">
+      <span class="badge">de Bruijn 图</span><span class="badge">A-Bruijn 图</span><span class="badge">单分子测序 (PacBio / Nanopore)</span><span class="badge">路径延伸</span><span class="badge">概率共识纠错</span>
+    </div>
+    <div class="tldr">
+      <div class="card"><b>① 反常识主张</b>长错误读段并非只能用 OLC 组装——把 de Bruijn 图推广为「A-Bruijn 图」,用稀疏的高频 k-mer 作锚点即可。</div>
+      <div class="card"><b>② 核心机制</b>A-Bruijn 图当「重叠预言机」:jump-子路径 DP 判重叠 → 支持图选最一致读段延伸 → 得结构正确、碱基错误的草图。</div>
+      <div class="card"><b>③ 结果</b>E. coli 全基因组仅 19 个错误(0.0004%),无需 Quiver;Xanthomonas、宏基因组上优于 CANU;8 分钟组装 + 36 分钟打磨。</div>
+    </div>
+  </div>
+</header>
+
+<nav id="topnav"><div class="wrap">
+  <a href="#s0">总览</a><a href="#s1">A-Bruijn 图</a><a href="#s2">固体 k-mer</a><a href="#s3">重叠判定</a><a href="#s4">路径延伸</a><a href="#s5">支持图与重复</a><a href="#s6">纠错</a><a href="#s7">实验</a><a href="#s8">通往 Flye</a>
+</div></nav>
+
+<main class="wrap">
+
+<!-- ============ S0 总览 ============ -->
+<section id="s0">
+  <h2>0 · 算法流水线总览</h2>
+  <p class="lead">ABruijn 的设计哲学是「<b>拓扑与序列解耦</b>」:先用稀疏锚点把基因组的重复结构和读段重叠关系搞定(此阶段允许碱基全错),再对拼出的草图集中纠错——比对 / 纠错对象是<b>整条草图</b>而非每条读段,比 OLC 先纠错再组装便宜得多。点击下方任一阶段查看细节;两条指标线展示「错拼」在延伸阶段被压制、「碱基错误」在打磨阶段被消除。</p>
+  <div id="w0"></div>
+  <details><summary class="mono">数学细节:阶段划分与误差演化</summary><div class="body">
+    <ul>
+      <li><b>组装阶段(节点 2–5)</b>:输入读段错误率 ~13%(PacBio P6-C4)。产出草图的 <b>错拼(misassembly)极少</b>,但碱基错误率仍 ~13%——因为延伸只关心「哪些读段连贯」,不关心碱基对错。</li>
+      <li><b>打磨阶段(节点 6–8)</b>:项链概率共识把错误率降到 <b>0.003%</b>;同核苷酸串专项似然再降 7 倍到 <b>0.0004%</b>(ECOLI 全基因组仅 19 个候选错误)。默认迭代 3 轮。</li>
+      <li>对比 OLC 路线(HGAP/Canu):先逐读段纠错再组装,纠错计算量正比于全部读段×覆盖;ABruijn 只需对最终 ~5 Mb 草图做一轮多重比对。</li>
+    </ul>
+  </div></details>
+</section>
+
+<!-- ============ S1 A-Bruijn 图 ============ -->
+<section id="s1">
+  <h2>1 · 从 de Bruijn 图到 A-Bruijn 图<span class="figtag">原文 Fig. 1</span></h2>
+  <p class="lead">经典定义:把字符串沿路径铺开(顶点标 (k−1)-mer、边标 k-mer),再<b>粘合同标签顶点</b>得到 DB(String, k)。A-Bruijn 图的推广只有一处:粘合前的锚点不再必须是「所有 k-mer」,而可以是任选的词集合 V(不互相包含,<b>长度任意、覆盖稀疏</b>)。下面用论文的例子 String = <span class="mono">CATCAGATAGGA</span>(环形)逐步演示。试试两种模式,并悬停顶点看它的「孪生」顶点。</p>
+  <div id="w1">
+    <div class="fig">
+      <div class="ctrl" id="w1ctrl"></div>
+      <div id="w1strip" style="margin:8px 0 4px"></div>
+      <div class="svgbox" id="w1svg"></div>
+      <div class="stepcap" id="w1cap"></div>
+      <div class="cap">上:Path(String, ·) 环形路径(同色 = 同标签,将被粘合)。中:同标签顶点互相靠拢。下:粘合后的图。悬停顶点高亮同标签组。</div>
+    </div>
+  </div>
+  <details><summary>为什么经典 DBG 在 SMS 读段上必死,而 A-Bruijn 图有活路?</summary><div class="body">
+    <ul>
+      <li>DBG 的顶点集合是「读段中所有 k-mer」。错误率 13% 时,每个错误都制造 k 个假 k-mer 顶点:k 小 → 图被海量假顶点缠死;k 大 → 真顶点因覆盖不足而断裂。两头堵死。</li>
+      <li>Illumina 时代的救命稻草——bubble / tip 消除等图简化——其正确性依赖错误率 ≤ 1%;对 10%+ 错误率的复杂 bubble 全部失效(详见 SI1)。</li>
+      <li>A-Bruijn 图把「选哪些锚点」变成自由参数:ABruijn 用<b>高频 (k,t)-mer</b>(下一节),使假锚点极少;锚点稀疏意味着读段在图中只是骨架路径——这正是后面一切速度优势的来源。</li>
+      <li>注意 DB(String,k) = AB(String, Σ<sup>k−1</sup>):DBG 只是 A-Bruijn 框架的特例。A-Bruijn 图还涵盖断点图、质谱肽组装等更一般场景。</li>
+    </ul>
+  </div></details>
+</section>
+
+<!-- ============ S2 固体 k-mer ============ -->
+<section id="s2">
+  <h2>2 · 选固体串:高频 (k, t)-mer<span class="figtag">原文 Fig. 2</span></h2>
+  <p class="lead">分类标准:在<b>基因组</b>中出现恰好一次的 k-mer 为「唯一」,多次为「重复」,不在基因组中的为「非基因组」(测序错误)。随机错误很难在多条读段里<b>原样重复</b>出现 t 次,所以「频率 ≥ t」是极强的基因组信号。ABruijn 定义 <b>(k, t)-mer</b> 为出现 ≥ t 次的 k-mer,并自动选 t:取使高频 k-mer 总数仍超过预估基因组长度的最大 t。拖动滑块,观察阈值带与右侧统计(直方图为按论文 Fig. 2 重建的示意数据,锚点数字与论文一致)。</p>
+  <div id="w2">
+    <div class="fig">
+      <div class="ctrl" id="w2ctrl"></div>
+      <div class="grid2">
+        <div class="svgbox" id="w2svg"></div>
+        <div class="panel" id="w2panel"></div>
+      </div>
+      <div class="cap">ECOLI 数据集(E. coli K12,PacBio P6-C4,≈55×,k=15)。绿=唯一 / 红=重复 / 蓝=非基因组;虚线 = 基因组长度 4.64 Mb;阴影带 = 被选为固体的频率区间。悬停柱状图查看各频率组成。</div>
+    </div>
+  </div>
+  <details><summary>阈值选择规则与参数直觉</summary><div class="body">
+    <ul>
+      <li><b>规则</b>:对每个 t 统计 S(t) = 频率 ≥ t 的 k-mer 总数;取使 S(t) ≥ 基因组长度 G 的最大 t。直观:基因组自身贡献的高频 k-mer 数量以 G 为天然下界,一旦 S(t) 跌破 G,说明开始大量丢真 k-mer。</li>
+      <li>论文中 t=7 时:4.1M 唯一 + 0.1M 重复 + <b>0.5M 非基因组</b>(假阳性 ~11%,可容忍);t=8 时三者变为 3.9M / 0.1M / 0.3M。将自动 t 加 1 结果几乎不变(鲁棒)。</li>
+      <li>非基因组 k-mer 在低频区(1–6 次)占绝大多数——它们是散乱错误;高频端的 0.5M 假阳性主要来自同核苷酸串中的<b>相关错误</b>(同一错误在覆盖堆叠中重复出现)。</li>
+      <li>k 的选择:k=15~25 均可,论文发现<b>偏小的 k 略优</b>(容错更高)。Xanthomonas 数据集自动选出 t=28(BLS)与 t=18(PXO),其余参数与 ECOLI 完全相同。</li>
+    </ul>
+  </div></details>
+</section>
+
+<!-- ============ S3 重叠判定 ============ -->
+<section id="s3">
+  <h2>3 · jump-子路径:图上的重叠判定<span class="figtag">原文 Fig. 3</span></h2>
+  <p class="lead">OLC 的瓶颈是全对全比对。ABruijn 的替代:两条重叠读段的骨架路径共享大量固体锚点(即使序列相似度只有 ~80%),于是把 A-Bruijn 图当<b>预言机</b>——一次扫描即可找出一条读段与所有其他读段的最长公共子路径。因为锚点间可能夹着「垃圾锚点」,公共子路径允许「跳」:相邻选中锚点在各自读段中的间隔 ≤ <b>jump</b>。用动态规划求<b>最大跨度公共 jump-子路径</b>,再以 minOverlap / maxOverhang 判重叠。拖动滑块看链在哪里断开。</p>
+  <div id="w3">
+    <div class="fig">
+      <div class="ctrl" id="w3ctrl"></div>
+      <div class="svgbox" id="w3svg"></div>
+      <div class="grid2" style="margin-top:12px">
+        <div class="stepcap" id="w3cap"></div>
+        <div class="panel" id="w3panel"></div>
+      </div>
+      <div class="legend">
+        <span><span class="sw" style="background:#2563eb"></span>共享锚点</span>
+        <span><span class="sw" style="background:#16a34a"></span>读段 A 独有</span>
+        <span><span class="sw" style="background:#ea580c"></span>读段 B 独有</span>
+        <span><span class="sw" style="background:#dc2626">✕</span>垃圾锚点(高频错误)</span>
+        <span><span class="sw" style="background:#7c3aed"></span>选中的公共 jump-子路径</span>
+      </div>
+    </div>
+  </div>
+  <details><summary class="mono">数学细节:动态规划递推与悬突定义</summary><div class="body">
+    <ul>
+      <li>边 (v,w) 的权 shift(v,w) = 两锚点起点在读段中的位置差;路径 P 上两点间 P-距离 d<sub>P</sub>(v,w) = 沿途边权之和。</li>
+      <li><b>jump-子路径</b>:顶点子序列 v₁…v_t,满足 d(vᵢ, vᵢ₊₁) ≤ jump;<b>公共</b> jump-子路径须同时是 P₁、P₂ 的 jump-子路径(且顶点在两条路径中顺序一致)。</li>
+      <li>递推(对每条与 P₁ 共享顶点的路径,一次扫描 P₁ 全部算完):
+        <div class="mono" style="margin:6px 0">span<sup>jump</sup>(v) = max<sub>w 为 v 在 P₁、P₂ 中的 jump-前驱</sub> { span<sup>jump</sup>(w) + d<sub>P₁</sub>(w, v) }</div>
+        其中 jump-前驱 = 在该路径中先于 v 出现且 d ≤ jump 的顶点。SI1 给出更快的启发式。</li>
+      <li><b>右悬突</b> = min(Path<sub>jump</sub> 终点到 P₁、P₂ 各自末端的距离);左悬突对称(到起点)。<b>判定重叠</b>:span ≥ minOverlap 且左右悬突 ≤ maxOverhang。论文 SI2 给出参数的经验范围;本示例 jump=1000 时公共子路径含 50 顶点、跨度 6,714 bp(悬突 425/434),此处为便于观看用了 9 个锚点的简化版。</li>
+      <li>第二个数据集展示假阳性来源:同一重复的两个拷贝共享全部保守锚点 → 判为「重叠」。这类假重叠由后续的 most-consistent 选择与支持图聚类兜底(第 4、5 节)。</li>
+    </ul>
+  </div></details>
+</section>
+
+<!-- ============ S4 路径延伸 ============ -->
+<section id="s4">
+  <h2>4 · 路径延伸:选「最一致」读段<span class="figtag">原文 Fig. 4 (Top)</span></h2>
+  <p class="lead">从短读长组装器(exSPAnder / SPAdes 系)借来 <b>path extension</b> 范式:维护一条 growing path,每步从候选集 Paths(与其重叠的读段)中挑一条向右延伸。难点是候选中混着三种坏读段:<b>嵌合</b>(真前缀+假尾巴)、<b>假重叠</b>(来自基因其他位置)、<b>过短</b>。ABruijn 的筛选器:<b>支持关系</b>——若 P₁、P₂ 重叠且公共部分终点到 P₁ 末端的距离更短,称「P₁ 被 P₂ 支持」(即 P₂ 延伸得更远)。取 Support = min(被支持数, 支持数) 最大者为 <b>most-consistent</b>:嵌合读段能支持很多人却几乎不被任何人支持,过短读段反之,min() 一石二鸟。</p>
+  <div id="w4">
+    <div class="fig">
+      <div class="ctrl" id="w4ctrl"></div>
+      <div class="svgbox" id="w4svg"></div>
+      <div id="w4table"></div>
+      <div class="stepcap" id="w4cap"></div>
+      <div class="cap">悬停任一候选读段:紫色箭头 = 「它支持的读段」(它延伸更远),绿色箭头 = 「支持它的读段」。虚线红段 = 嵌合读段的假尾巴。</div>
+    </div>
+  </div>
+  <details><summary>实现要点</summary><div class="body">
+    <ul>
+      <li>一条 contig 拼完后,ABruijn 把所有读段比对回该 contig,用<b>尚未使用过的读段</b>迭代构建其余 contigs;向右延伸停止则尝试向左。</li>
+      <li>支持关系的判定复用第 3 节的 jump-子路径机器(两条路径的 Path<sub>jump</sub> + 悬突比较),因此「A-Bruijn 框架对重叠检测比 de Bruijn 框架更不敏感」这一性质同样适用于支持计数。</li>
+      <li>平局任意打破;被选中的读段随后从候选池移除,避免循环延伸。</li>
+    </ul>
+  </div></details>
+</section>
+
+<!-- ============ S5 支持图与重复 ============ -->
+<section id="s5">
+  <h2>5 · 支持图聚类:检测读段是否落在重复里<span class="figtag">原文 Fig. 4 (中/下) + Fig. 5</span></h2>
+  <p class="lead">exSPAnder 在 de Bruijn 图里能直接「看见」分支(重复)结构;A-Bruijn 图看不见。ABruijn 的替代:纯从候选读段间的<b>支持关系拓扑</b>反推。对候选集构建支持图 G(边 v→w 表示 v 被 w 支持),取传递闭包 G*,然后迭代聚类:取最大入度顶点,若入度 > 1,把它连同全部前驱移除为一簇。<b>1 簇 → 读段末端不在重复里;≥2 簇 → 末端在重复里(簇数 ≈ 重复倍数 m)</b>——来自不同拷贝的读段互不支持,所以彼此不连通。切换两个场景,逐簇观看聚类过程。</p>
+  <div id="w5">
+    <div class="fig">
+      <div class="ctrl" id="w5ctrl"></div>
+      <div class="grid2">
+        <div class="svgbox" id="w5svg"></div>
+        <div class="panel" id="w5panel"></div>
+      </div>
+      <div class="stepcap" id="w5cap"></div>
+      <div class="cap">实线 = 支持图 G 的边;虚线 = 传递闭包 G* 新增的边;悬停顶点查看其 G* 入度/出度。论文实测:ECOLI 3.2%、BLS 6.4% 的读段末端落在重复里。</div>
+    </div>
+  </div>
+  <details><summary>决策规则(延伸时如何用聚类结果)</summary><div class="body">
+    <ul>
+      <li><b>growing path 不停在重复里</b>:选一条 (i) 末端不在重复 (ii) most-consistent(入度、出度都大)的候选——同时排除嵌合与假重叠。</li>
+      <li><b>growing path 停在重复里</b>:排除所有「起点在重复里」的候选(它们可能跳去其他拷贝),在剩余候选中选 most-consistent;若无则停止延伸(等后续 unbridged 机制或留作断点)。</li>
+      <li>聚类用 Floyd–Warshall 求传递闭包;默认入度阈值 = 1。场景 B 中蓝色簇恰好 5 条、红色簇 3 条,对应倍数 2 的重复两侧延伸——与论文 Fig. 4(下)「read 8 入度最大、揭示 4 个前驱」的描述一致。</li>
+      <li>这一整套启发式(支持图 + 聚类 + 决策规则)是 ABruijn 为「看不见局部重复结构」付出的代价——Flye 后来用「先乱拼、再建图」把整个问题绕开了。</li>
+    </ul>
+  </div></details>
+</section>
+
+<!-- ============ S6 纠错 ============ -->
+<section id="s6">
+  <h2>6 · 纠错:迷你比对 → 项链共识 → 同核苷酸串<span class="figtag">原文 Fig. 6</span></h2>
+  <p class="lead">草图结构对了,但每个碱基都可能错。纠错分三步:① 把全基因组多重比对切成成千上万个 ≈30 nt 的<b>迷你比对</b>(用「固体区域 → 地标」划分,避免错位段污染共识);② 对每条项链跑概率共识;③ 对同核苷酸串(占 E. coli 基因组 46%、PacBio 的老大难)换用专门的似然函数。三个子演示对应这三步。</p>
+
+  <h3>6a · 固体区域、地标与项链的划分<span class="figtag">Fig. 6 左/右</span></h3>
+  <div id="w6a">
+    <div class="fig">
+      <div class="ctrl" id="w6actrl"></div>
+      <div id="w6atable"></div>
+      <div class="cap">25 bp 草图片段 × 6 条读段的自制演示比对(结构仿照 Fig. 6):琥珀=替换、红=缺失、蓝=插入;统计行实时计算;(α,β)-固体 4-mer 行决定固体区域;紫色 ◆ = 地标(避开同核苷酸串);色带 = 项链划分。悬停单元格看逐列数值。</div>
+    </div>
+  </div>
+  <details><summary class="mono">定义:(α,β)-固体 l-mer 与选地标</summary><div class="body">
+    <ul>
+      <li>列统计:Cov(i) = Match(i)+Sub(i)+Del(i);Ins(i) = 参考列 i 与 i+1 之间非参考列的插入总数。match rate = Match/Cov,insertion rate = Ins/Cov。</li>
+      <li>草图中 l-mer 的<b>局部 match rate</b> = 其覆盖位置上 match rate 的最小值;<b>局部 insertion rate</b> = insertion rate 的最大值。<b>(α,β)-固体</b>:前者 &gt; α 且后者 ≤ β。论文取 l=10、α=0.8、β=0.2(ECOLI 草图得 139,585 个固体区域);演示用 l=4 便于展示。</li>
+      <li>连续固体 l-mer 构成固体区域;每个区域内选一个<b>地标</b>(刻意避开同核苷酸串),相邻地标间的读段片段构成迷你比对,平均仅 ≈30 nt——短到纠错又快又准。</li>
+      <li>为什么不能用固定长度切?BLASR 比对不可靠:读段上对齐到第 i 段的区域可能实际来自 i±1 段或另一重复拷贝(错位段),共识就被污染。固体区域相当于「高置信锚排」,把基因组切成天然对齐的小格。插入高发区(如演示中 16–17 列)自动落进项链内部,由共识算法处理。</li>
+    </ul>
+  </div></details>
+
+  <h3>6b · 项链的概率共识(贪心变异)<span class="figtag">Fig. 6 项链 1</span></h3>
+  <div id="w6b">
+    <div class="fig">
+      <div class="ctrl" id="w6bctrl"></div>
+      <div id="w6bseg" class="small"></div>
+      <div class="grid2" style="margin-top:10px">
+        <div>
+          <div style="font-size:15px">当前共识:<span class="mono" id="w6bcons" style="font-size:22px;letter-spacing:3px;color:var(--acc);font-weight:700"></span>
+          &nbsp;<span class="small">Pr(Segments|Consensus) = <b class="mono" id="w6bpr"></b></span></div>
+          <div id="w6bmut" class="small" style="margin-top:6px"></div>
+        </div>
+        <div class="logbox" id="w6blog"></div>
+      </div>
+      <div class="cap">对论文 Fig. 6 项链 1 的片段集合(微调了一条使共识唯一):每轮枚举全部单点变异(替换/插入/删除),选使似然提升最大者,直到收敛。技术:每个片段的最优变异可用一次前向–后向 DP 求出(同 Quiver 的做法)。</div>
+    </div>
+  </div>
+
+  <h3>6c · 同核苷酸串专项似然<span class="figtag">SI 4 / 正文 8.5 节</span></h3>
+  <div id="w6c">
+    <div class="fig">
+      <div class="ctrl" id="w6cctrl"></div>
+      <div class="grid2">
+        <div class="svgbox" id="w6csvg"></div>
+        <div class="panel" id="w6cpanel"></div>
+      </div>
+      <div class="cap">论文实例:项链片段 Segments = {5A, 6A, 6A, 7A, 6A1C}。通用似然在同核苷酸串长度估计上失效;专项似然用「run 长度 → 读段观测」频率表(如 run AAAAAAA 对上读段 AATTACA 记作 4A3X)。该表跨数据集、跨参考、甚至跨化学版本(P6-C4 vs P5-C3)几乎不变。</div>
+    </div>
+  </div>
+  <details><summary>整体纠错流程小结</summary><div class="body">
+    <ul>
+      <li>BLASR 全读段比对回草图 → 合并成全基因组多重比对 → 按「固体区域/地标」切项链 → 每条项链概率共识(错误率 → 0.003%)→ 同核苷酸串专项似然(→ 0.0004%,ECOLI 全基因组 19 个候选错误)。</li>
+      <li>默认重新比对 + 打磨迭代 3 轮;SI6 说明再降 ~20% 的后处理。ECOLI 全程:组装 ≈8 min + 打磨 ≈36 min,内存 2 GB。</li>
+      <li>与 Quiver 的关系:Quiver 用原始机器信号(HDF5 pulse),ABruijn 用碱基级统计——所以 ABruijn 不挂 Quiver 也能到同等精度(Table 1:19 vs CANU 裸组装 637)。</li>
+    </ul>
+  </div></details>
+</section>
+
+<!-- ============ S7 实验 ============ -->
+<section id="s7">
+  <h2>7 · 实验结果一览</h2>
+  <p class="lead">基准评测的难点:SMS 高覆盖组装比短读长组装更准,参考基因组本身又不是金标准(所用 E. coli K12 菌株与参考不同)。作者的做法:用 CANU+Quiver 与 ABruijn 的共识修正参考,再互为镜子数错误。下图是降采样实验——ABruijn 在低覆盖下不仅更准,还从不碎成断片(CANU 在 30× 的一次重复实验中直接组装失败)。</p>
+  <div id="w7">
+    <div class="fig">
+      <div class="ctrl" id="w7ctrl"></div>
+      <div class="svgbox" id="w7svg"></div>
+      <div class="cap">ECOLI 降采样(5 次重复取 4 次较好者):y 轴 = 相对修订后参考的碱基错误数。悬停数据点查看数值。</div>
+    </div>
+  </div>
+  <div class="grid2">
+    <table class="data" id="w7table"></table>
+    <div class="panel" style="font-size:14px">
+      <b>其他数据集要点</b>
+      <div class="kv"><span>ECOLI(55×)</span><b>单环形 contig,19 错</b></div>
+      <div class="kv"><span>ECOLInano(ONT 29×)</span><b>1.1% 错误率(Nanocorrect 1.5%)</b></div>
+      <div class="kv"><span>BLS(Xanthomonas,t=28)</span><b>5 错(不加 Quiver!)</b></div>
+      <div class="kv"><span>PXO(t=18)</span><b>15 错 vs CANU+Quiver 130</b></div>
+      <div class="kv"><span>BNE 宏基因组(25×)</span><b>202 Mb vs CANU 171 Mb,N50 242 vs 98 kb</b></div>
+      <div class="kv"><span>BNE CEGMA 核心基因</span><b>缺 11/248 vs CANU 18/248</b></div>
+      <div style="margin-top:8px" class="small">Xanthomonas 基因组含 20+ 个 tal 基因、30 kb 级复杂重复区,曾让 HGAP 直接失败、需要定制 PBS 算法;ABruijn 用默认参数 + 自动 t 即可。B. neritina 与共生菌无法分离 DNA,是覆盖率差异巨大的宏基因组难题;antiSMASH 在 ABruijn 组装上找到 9 个细菌生物合成基因簇。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ S8 通往 Flye ============ -->
+<section id="s8">
+  <h2>8 · 承上启下:ABruijn 留下了什么问题?</h2>
+  <p class="lead">ABruijn 证明了「de Bruijn 图一系方法可以组装长错误读段」,但它有三个结构性代价——它们正是 2019 年 <b>Flye</b>(同一团队)要解决的东西。</p>
+  <table class="data" style="width:100%">
+    <tr><th style="width:24%">ABruijn 的代价</th><th>根源</th><th style="width:30%">Flye 的解法</th></tr>
+    <tr><td>逐读段延伸,选路慢且需谨慎校验</td><td>要保证每条 contig 都是基因组 tour 的正确子路径</td><td>干脆不保证:随机游走生成「错的」disjointigs,再从它们重建准确的重复图</td></tr>
+    <tr><td>支持图 / 聚类等一整套启发式</td><td>A-Bruijn 图看不见局部重复结构</td><td>显式构建重复图(assembly graph),重复结构一目了然</td></tr>
+    <tr><td>只输出 contigs,无重复刻画</td><td>路径延伸到分支处就停,图从未显式出现</td><td>输出重复图本身:可用于解 unbridged repeats、分析节段重复(SD)、辅助 finishing</td></tr>
+  </table>
+  <p style="margin-top:14px">下一篇交互详解:<a href="flye.html"><b>Flye · Assembly of Long Error-Prone Reads Using Repeat Graphs →</b></a>(本目录下 flye.html)</p>
+</section>
+
+</main>
+
+<footer class="footer"><div class="wrap">
+  交互式解读材料(非官方)· 数据与公式均取自论文正文及 SI 描述;标注「示意」的图表按论文图重建,锚点数字与原文一致。
+  本地文件:<a href="lin-et-al-2016-assembly-of-long-error-prone-reads-using-de-bruijn-graphs.pdf">ABruijn 原文 PDF</a> ·
+  <a href="Assembly-of-Long-Error-Prone-Reads-Using-Repeat-Graphs .pdf">Flye 原文 PDF</a> ·
+  <a href="flye.html">Flye 交互详解</a>
+</div></footer>
+
+<script>
+/* ================= 通用工具 ================= */
+const NS='http://www.w3.org/2000/svg';
+function S(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e;}
+function D(cls,parent,html){const e=document.createElement('div');if(cls)e.className=cls;if(html!==undefined)e.innerHTML=html;if(parent)parent.appendChild(e);return e;}
+function BTN(label,parent,fn,cls){const b=document.createElement('button');b.className='btn'+(cls?' '+cls:'');b.textContent=label;b.onclick=fn;parent.appendChild(b);return b;}
+function SLD(parent,label,min,max,val,step,fmt){const w=D('sld',parent);const lab=D('',w);lab.innerHTML=label+' <b></b>';const inp=document.createElement('input');inp.type='range';inp.min=min;inp.max=max;inp.step=step||1;inp.value=val;w.appendChild(inp);const bold=lab.querySelector('b');const upd=()=>{bold.textContent=fmt?fmt(+inp.value):inp.value;};inp.addEventListener('input',upd);upd();return inp;}
+const COL={blue:'#2563eb',red:'#dc2626',green:'#16a34a',purple:'#7c3aed',teal:'#0d9488',orange:'#ea580c',gray:'#9ca3af',ink:'#1f2937',amber:'#d97706'};
+const PAL=['#4f46e5','#0d9488','#ea580c','#7c3aed','#16a34a','#2563eb','#dc2626','#d97706','#0891b2','#be185d','#65a30d','#a21caf'];
+
+/* ================= 滚动导航高亮 ================= */
+(function(){
+  const links=[...document.querySelectorAll('#topnav a')];
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+en.target.id));}});},{rootMargin:'-30% 0px -60% 0px'});
+  document.querySelectorAll('main section').forEach(s=>io.observe(s));
+})();
+
+/* ================= W0 流水线总览 ================= */
+(function(){
+  const root=document.getElementById('w0');
+  const stages=[
+    {t:'读段',m1:'错误率 ~13%',m2:'PacBio P6-C4',d:'输入:单分子测序长读段(平均数 kb,错误以插入/缺失为主)。例如 ECOLI:10,277 条读段,≈55×。'},
+    {t:'固体 k-mer',m1:'k=15, t 自动',m2:'ECOLI: t=7',d:'选高频 (k,t)-mer 作锚点。错误 k-mer 难以重复出现,高频 k-mer 绝大多数来自基因组。每条读段被压缩成一条稀疏「骨架路径」。'},
+    {t:'A-Bruijn 图',m1:'粘合同标签顶点',m2:'不做图简化',d:'所有读段路径放到同一图中,同标签顶点粘合。跳过 bubble/tip 消除(它们在 10%+ 错误率下失效),把图当「重叠预言机」直接用。'},
+    {t:'重叠判定',m1:'jump-子路径 DP',m2:'min(支持,被支持)',d:'最大跨度公共 jump-子路径判断读段对是否重叠;支持关系分辨谁延伸得更远。'},
+    {t:'路径延伸',m1:'most-consistent',m2:'支持图聚类防重',d:'反复挑 Support = min(被支持数,支持数) 最大的候选延伸;支持图聚类判断延伸是否停在重复里、排除嵌合/假重叠。'},
+    {t:'草图基因组',m1:'结构 ✓',m2:'碱基 ✗ (~13%)',d:'错拼极少但碱基错误密布。关键:对整条草图纠错,远比对每条读段先纠错(OLC 路线)便宜。'},
+    {t:'迷你比对/项链',m1:'固体区域→地标',m2:'平均 ≈30 nt',d:'BLASR 比对回草图 → 多重比对;按 (α,β)-固体 l-mer 定地标,切成上千个短迷你比对,避免错位段污染共识。'},
+    {t:'概率共识',m1:'错误率 → 0.003%',m2:'贪心变异',d:'每条项链最大化 Pr(Segments|Consensus),贪心单点变异至收敛(前向–后向 DP 加速)。'},
+    {t:'同核苷酸串校正',m1:'→ 0.0004%',m2:'再降 7 倍',d:'专用似然:run 长度→读段观测的频率表(跨数据集/化学几乎不变)。ECOLI 全基因组仅剩 19 个候选错误。迭代 3 轮。'},
+  ];
+  const flow=D('flow',root);
+  const nodes=stages.map((st,i)=>{
+    const n=D('fnode',flow,(i?'<div class="farrow" style="position:absolute;left:-13px;top:38%">➜</div>':'')+'<b>'+st.t+'</b><span class="m1">'+st.m1+'</span><span class="m2">'+st.m2+'</span>');
+    n.onclick=()=>show(i);return n;
+  });
+  const cap=D('stepcap',root);
+  let cur=-1,timer=null;
+  function show(i){cur=i;nodes.forEach((n,j)=>n.classList.toggle('on',j===i));
+    cap.innerHTML='<b>阶段 '+(i+1)+' · '+stages[i].t+'</b> — '+stages[i].d;}
+  BTN('▶ 自动播放',flow,()=>{clearInterval(timer);let i=0;show(0);timer=setInterval(()=>{i=(i+1)%stages.length;show(i);},2200);},'ghost mini');
+  BTN('⏸ 停',flow,()=>clearInterval(timer),'ghost mini');
+  show(0);
+})();
+
+/* ================= W1 A-Bruijn 图构造 ================= */
+(function(){
+  const root=document.getElementById('w1');
+  const STR='CATCAGATAGGA', n=12;
+  const CTRL=document.getElementById('w1ctrl'),STRIP=document.getElementById('w1strip'),BOX=document.getElementById('w1svg'),CAP=document.getElementById('w1cap');
+  let mode='ab',step=0,anim=null,edgeEls=[];
+  const MODES={
+    db:{label:'de Bruijn 图 (k=3)',
+      occ:Array.from({length:n},(_,i)=>({p:i,lab:STR[i]+STR[(i+1)%n]})),
+      edgeLabel:(a,b)=>STR[a.p]+STR[(a.p+1)%n]+STR[(a.p+2)%n], el:'k-mer'},
+    ab:{label:'A-Bruijn 图 (V={CA,AT,TC,AGA,TA,AC})',
+      occ:[[0,'CA'],[1,'AT'],[2,'TC'],[3,'CA'],[4,'AGA'],[6,'AT'],[7,'TA'],[11,'AC']].map(x=>({p:x[0],lab:x[1]})),
+      edgeLabel:(a,b)=>'shift '+(b.p-a.p), el:'shift'}};
+  const LAYOUT={
+    db:{CA:[120,150],AT:[270,70],TC:[400,140],AG:[250,215],GA:[150,255],TA:[355,235],GG:[110,235],AC:[355,295]},
+    ab:{CA:[120,160],AT:[260,75],TC:[400,160],AGA:[185,235],TA:[335,230],AC:[255,300]}};
+  const CX=430,CY=175,R=118;
+  const covered={db:new Set(),ab:new Set([0,1,2,3,4,5,6,7,8,11])};
+  let svg,gPath,gGlued,vertEls=[],curPull=0;
+
+  function circlePos(p){const a=-Math.PI/2+2*Math.PI*p/n;return[CX+R*Math.cos(a),CY+R*Math.sin(a)];}
+  function groups(M){const g={};M.occ.forEach((o,i)=>{(g[o.lab]=g[o.lab]||[]).push(i);});return g;}
+  function groupColors(M){const g=groups(M);const map={};let k=0;for(const lab in g)map[lab]=PAL[k++%PAL.length];return map;}
+
+  function build(){
+    BOX.innerHTML='';svg=S('svg',{width:860,height:330,viewBox:'0 0 860 330'},BOX);
+    const defs=S('defs',{},svg);const mk=S('marker',{id:'arw',markerWidth:8,markerHeight:8,refX:7,refY:4,orient:'auto'},defs);
+    S('path',{d:'M0,0 L8,4 L0,8 z',fill:'#6b7280'},mk);
+    gPath=S('g',{},svg);gGlued=S('g',{opacity:0,'pointer-events':'none'},svg);
+    const M=MODES[mode],gc=groupColors(M),grp=groups(M);
+    // --- path layer ---
+    vertEls=[];
+    const pos=M.occ.map(o=>circlePos(o.p));
+    const tgt=M.occ.map((o,i)=>{const g=grp[o.lab];if(g.length<2)return pos[i];
+      const c=[0,0];g.forEach(j=>{c[0]+=pos[j][0];c[1]+=pos[j][1];});c[0]/=g.length;c[1]/=g.length;
+      const k=g.indexOf(i);return[c[0]+(k-(g.length-1)/2)*36,c[1]+(k-(g.length-1)/2)*10];});
+    // edges
+    edgeEls=[];
+    for(let i=0;i<M.occ.length;i++){const a=M.occ[i],b=M.occ[(i+1)%M.occ.length];
+      const ln=S('line',{stroke:'#c7cdd8','stroke-width':1.6,'marker-end':'url(#arw)'},gPath);edgeEls.push(ln);
+      const t=S('text',{'font-size':10,fill:'#9ca3af','text-anchor':'middle'},gPath);t.textContent=M.edgeLabel(a,b);edgeEls.push(t);}
+    // vertices
+    M.occ.forEach((o,i)=>{const c=S('circle',{r:11,fill:gc[o.lab],stroke:'#fff','stroke-width':2,cursor:'pointer'},gPath);
+      const lb=S('text',{'font-size':11,'font-weight':700,fill:'#374151','text-anchor':'middle',cursor:'pointer'},gPath);lb.textContent=o.lab;
+      const tt=S('title',{},c);tt.textContent=o.lab+' @ '+o.p+(grp[o.lab].length>1?('  ×'+grp[o.lab].length+' (将粘合)'):'');
+      vertEls.push({c,lb,i});});
+    const layoutPath=(t)=>{ // t: 0..1 pull progress
+      M.occ.forEach((o,i)=>{const x=pos[i][0]+(tgt[i][0]-pos[i][0])*t,y=pos[i][1]+(tgt[i][1]-pos[i][1])*t;
+        const v=vertEls[i];v.c.setAttribute('cx',x);v.c.setAttribute('cy',y);v.lb.setAttribute('x',x);v.lb.setAttribute('y',y-16);v.x=x;v.y=y;});
+      for(let i=0;i<M.occ.length;i++){const a=vertEls[i],b=vertEls[(i+1)%M.occ.length];
+        const ln=edgeEls[2*i],lb=edgeEls[2*i+1];
+        ln.setAttribute('x1',a.x);ln.setAttribute('y1',a.y);ln.setAttribute('x2',b.x);ln.setAttribute('y2',b.y);
+        lb.setAttribute('x',(a.x+b.x)/2);lb.setAttribute('y',(a.y+b.y)/2-4);}};
+    layoutPath(0);
+    vertEls.forEach(v=>{const h=()=>{const lab=M.occ[v.i].lab;vertEls.forEach(u=>{const on=M.occ[u.i].lab===lab;u.c.setAttribute('stroke',on?'#111827':'#fff');u.c.setAttribute('stroke-width',on?3:2);});};
+      v.c.addEventListener('mouseenter',h);v.lb.addEventListener('mouseenter',h);v.c.addEventListener('mouseleave',()=>vertEls.forEach(u=>{u.c.setAttribute('stroke','#fff');u.c.setAttribute('stroke-width',2);}));});
+    // --- glued layer ---
+    const gl=M.occ.filter((o,i)=>grp[o.lab][0]===i); // unique labels in first-occurrence order
+    const lay=LAYOUT[mode];
+    const gedges={};
+    for(let i=0;i<M.occ.length;i++){const a=M.occ[i],b=M.occ[(i+1)%M.occ.length];const key=a.lab+'>'+b.lab;
+      if(!gedges[key])gedges[key]={s:a.lab,t:b.lab,lab:M.edgeLabel(a,b)};}
+    const gpos={};gl.forEach(o=>gpos[o.lab]=lay[o.lab]||[430,180]);
+    for(const k in gedges){const e=gedges[k],p1=gpos[e.s],p2=gpos[e.t];
+      const mx=(p1[0]+p2[0])/2,my=(p1[1]+p2[1])/2,dx=p2[0]-p1[0],dy=p2[1]-p1[1],L=Math.hypot(dx,dy)||1;
+      const off=Math.min(26,L*0.18),cx=mx-dy/L*off,cy=my+dx/L*off;
+      S('path',{d:'M'+p1[0]+','+p1[1]+' Q'+cx+','+cy+' '+p2[0]+','+p2[1],fill:'none',stroke:'#94a3b8','stroke-width':2,'marker-end':'url(#arw)'},gGlued);
+      S('text',{x:cx,y:cy-4,'font-size':10.5,fill:'#64748b','text-anchor':'middle'},gGlued).textContent=e.lab;}
+    gl.forEach(o=>{const p=gpos[o.lab];const c=S('circle',{cx:p[0],cy:p[1],r:15,fill:gc[o.lab],stroke:'#fff','stroke-width':2},gGlued);
+      S('text',{x:p[0],y:p[1]+4,'font-size':10.5,'font-weight':700,fill:'#fff','text-anchor':'middle','pointer-events':'none'},gGlued).textContent=o.lab;
+      const t=S('title',{},c);t.textContent=o.lab+(grp[o.lab].length>1?'(由 '+grp[o.lab].length+' 个顶点粘合)':'');});
+    if(step===2){gGlued.setAttribute('opacity',1);gGlued.setAttribute('pointer-events','auto');gPath.setAttribute('opacity',0.25);}
+    else layoutPath(step===0?0:curPull);
+    renderStrip();renderCap();
+  }
+  function animatePull(){if(anim)cancelAnimationFrame(anim);const t0=performance.now(),dur=700;
+    const tick=(now)=>{curPull=Math.min(1,(now-t0)/dur);const e=curPull<1?(1-Math.pow(1-curPull,3)):1;
+      const M=MODES[mode];for(let i=0;i<M.occ.length;i++){const v=vertEls[i];
+        const p0=circlePos(M.occ[i].p);const x=p0[0]+(v.tx-p0[0])*e,y=p0[1]+(v.ty-p0[1])*e;
+        v.c.setAttribute('cx',x);v.c.setAttribute('cy',y);v.lb.setAttribute('x',x);v.lb.setAttribute('y',y-16);v.x=x;v.y=y;}
+      for(let i=0;i<M.occ.length;i++){const a=vertEls[i],b=vertEls[(i+1)%M.occ.length];
+        const ln=edgeEls[2*i],lb=edgeEls[2*i+1];
+        if(ln){ln.setAttribute('x1',a.x);ln.setAttribute('y1',a.y);ln.setAttribute('x2',b.x);ln.setAttribute('y2',b.y);}
+        if(lb){lb.setAttribute('x',(a.x+b.x)/2);lb.setAttribute('y',(a.y+b.y)/2-4);}}
+      if(curPull<1)anim=requestAnimationFrame(tick);};
+    const M=MODES[mode],grp=groups(M),pos=M.occ.map(o=>circlePos(o.p));
+    M.occ.forEach((o,i)=>{const g=grp[o.lab];let t=pos[i];if(g.length>=2){const c=[0,0];g.forEach(j=>{c[0]+=pos[j][0];c[1]+=pos[j][1];});c[0]/=g.length;c[1]/=g.length;const k=g.indexOf(i);t=[c[0]+(k-(g.length-1)/2)*36,c[1]+(k-(g.length-1)/2)*10];}
+      vertEls[i].tx=t[0];vertEls[i].ty=t[1];});
+    anim=requestAnimationFrame(tick);}
+  function renderStrip(){const M=MODES[mode],cov=covered[mode];const w=D('',null);STRIP.innerHTML='';
+    const lab=D('small',STRIP,'String = CATCAGATAGGA(环形)'+' · '+(mode==='ab'?'灰色 = 未被 V 中任何词覆盖的字符(V 不必处处覆盖!)':'k-mer 铺满全部字符'));
+    const row=D('',STRIP);row.style.cssText='display:flex;gap:3px;margin-top:6px';
+    for(let i=0;i<n;i++){const c=D('',row);c.textContent=STR[i];c.className='mono';
+      c.style.cssText='width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:6px;font-weight:700;'+(cov.has(i)?'background:#eef2ff;color:#4f46e5;border:1px solid #c7d2fe':'background:#f3f4f6;color:#d1d5db;border:1px solid #e5e7eb');}}
+  function renderCap(){const M=MODES[mode];const cnt=Object.keys(groups(M)).length;
+    const caps=[
+      '<b>第 1 步 · 铺路径</b>:'+(mode==='db'?'Path(String,3):12 条边,边标 3-mer,顶点标 2-mer——「同标签顶点」有 8 组(如 CA×2、AT×2、AG×2、GA×2)。':'Path(String,V):只经过 V 中词的出现位置(8 个顶点、边标 shift=两锚点起点差)。同标签顶点只有 CA×2、AT×2 两组——锚点越稀疏,图越小。悬停顶点看孪生。'),
+      '<b>第 2 步 · 聚拢</b>:把同标签顶点拉到一起——这就是「粘合」前的直观预览。注意有些字符(灰色)从没被任何锚点覆盖,但毫不影响组装:重叠关系靠锚点而非逐碱基。',''
+      ];
+    if(step===2){CAP.innerHTML='<b>第 3 步 · 粘合完成</b>:得到 '+MODES[mode].label.split(' (')[0]+(mode==='db'?'(8 个顶点、12 条边;DBG 中每个 2-mer 顶点都被高频错误 k-mer 版本轰炸——真实数据下图的规模爆炸)':'(仅 6 个顶点、8 条边;CA 与 AT 各出现两次 → 各自产生分支,正是这两个重复让图有了「结构信息」)')+'。';}
+    else CAP.innerHTML=caps[step];}
+  // controls
+  const mkMode=(id,lab)=>{const b=BTN(lab,CTRL,()=>{mode=id;step=0;curPull=0;build();},'mini ghost');b.id='w1m_'+id;
+    const sync=()=>{document.getElementById('w1m_db').style.background=document.getElementById('w1m_ab').style.background='';document.getElementById('w1m_db').style.color=document.getElementById('w1m_ab').style.color='';
+      const on=document.getElementById('w1m_'+mode);on.style.background='#4f46e5';on.style.color='#fff';on.style.borderColor='#4f46e5';};
+    const old=b.onclick;b.onclick=()=>{old();sync();};return sync;};
+  const sync1=mkMode('db','de Bruijn (k=3)');mkMode('ab','A-Bruijn (稀疏锚点)');sync1();
+  BTN('⟲ 重置',CTRL,()=>{step=0;curPull=0;build();},'mini ghost');
+  BTN('◀ 上一步',CTRL,()=>{if(step>0){step--;if(step===1)curPull=0;build();}},'mini');
+  BTN('下一步 ▶',CTRL,()=>{if(step<2){step++;if(step===1){build();animatePull();}else build();}},'mini');
+  build();
+})();
+
+/* ================= W2 固体 k-mer 直方图 ================= */
+(function(){
+  const root=document.getElementById('w2');
+  const CTRL=document.getElementById('w2ctrl'),BOX=document.getElementById('w2svg'),PANEL=document.getElementById('w2panel');
+  const G=4640; // genome kb
+  const uF=f=>193*Math.exp(-Math.pow((f-55)/12,2));
+  const bumps=[[110,6,60],[165,6,25],[220,8,10]];
+  const rF=f=>bumps.reduce((s,b)=>s+b[2]/(b[1]*Math.sqrt(Math.PI))*Math.exp(-Math.pow((f-b[0])/b[1],2)),0);
+  const lowN=[3200,1100,420,170,75,36],tailN=[190,120,75,45,28,17,11,7,4.5,3,2,1.4,1,.7,.5,.35,.25,.18,.12,.08,.05,.03,.02];
+  const nF=f=>f<=6?lowN[f-1]:(f-7<tailN.length?tailN[f-7]:0.01);
+  const FMAX=70;
+  function Ssum(t){let u=0,r=0,nn=0;for(let f=t;f<=250;f++){u+=uF(f);r+=rF(f);nn+=nF(f);}return{u,r,n:nn,tot:u+r+nn};}
+  function autoT(){for(let t=1;t<=30;t++){if(Ssum(t+1).tot<G)return t;}return 1;}
+  const W=640,H=300,L=54,B=34;
+  const yOf=v=>{const lg=Math.log10(Math.max(v*1000,1000));return H-B-(lg-3)/(Math.log10(5e6)-3)*(H-B-14);};
+  const bw=(W-L-10)/FMAX;
+  let svg,band,slider,badge;
+  function draw(){BOX.innerHTML='';svg=S('svg',{width:W,height:H},BOX);
+    // gridlines
+    [[10,'10k'],[100,'100k'],[1000,'1M'],[4100,'~4M']].forEach(g=>{S('line',{x1:L,x2:W-6,y1:yOf(g[0]),y2:yOf(g[0]),stroke:'#eef0f4'},svg);S('text',{x:L-6,y:yOf(g[0])+4,'font-size':10,fill:'#9ca3af','text-anchor':'end'},svg).textContent=g[1];});
+    // genome line
+    S('line',{x1:L,x2:W-6,y1:yOf(G),y2:yOf(G),stroke:'#dc2626','stroke-dasharray':'5,4','stroke-width':1.4},svg);
+    S('text',{x:W-8,y:yOf(G)-5,'font-size':10.5,fill:'#dc2626','text-anchor':'end'},svg).textContent='基因组长度 4.64 Mb';
+    const t=+slider.value;const tX=L+(t-1)*bw;
+    band=S('rect',{x:tX,y:8,width:W-6-tX,height:H-B-8,fill:'#4f46e5',opacity:.08},svg);
+    for(let f=1;f<=FMAX;f++){const x=L+(f-1)*bw+2,wpx=bw-4;
+      const uu=uF(f),rr=rF(f),nn=nF(f),tot=uu+rr+nn;if(tot<1)continue;
+      const topY=yOf(tot),totalH=(H-B)-topY;
+      let base=H-B;
+      const segs=[[nn,'#60a5fa'],[rr,'#f87171'],[uu,'#34d399']];
+      segs.forEach(sg=>{const h=totalH*sg[0]/tot;
+        if(h>0.4)S('rect',{x,y:base-h,width:wpx,height:h,fill:sg[1],opacity:f>=t?1:.55,rx:1},svg);
+        base-=h;});
+      const hit=S('rect',{x:x-1,y:topY,width:wpx+2,height:Math.max(2,(H-B)-topY),fill:'transparent',cursor:'pointer'},svg);
+      S('title',{},hit).textContent='频率 '+f+': 唯一 '+Math.round(uu)+'k / 重复 '+Math.round(rr)+'k / 非基因组 '+Math.round(nn)+'k';
+      if(f%10===0||f===1)S('text',{x:L+(f-1)*bw+bw/2,y:H-B+14,'font-size':10,fill:'#9ca3af','text-anchor':'middle'},svg).textContent=f;}
+        S('text',{x:(L+W)/2,y:H-2,'font-size':11,fill:'#6b7280','text-anchor':'middle'},svg).textContent='k-mer 在读段中的出现频率 f(≥30 略)';
+    S('text',{x:14,y:20,'font-size':11,fill:'#6b7280'},svg).textContent='k-mer 数量(对数)';
+    update();}
+  function update(){const t=+slider.value,st=Ssum(t),at=autoT();
+    band.setAttribute('x',54+(t-1)*bw);band.setAttribute('width',640-6-(54+(t-1)*bw)+54-54);
+    band.setAttribute('width',Math.max(0,634-(54+(t-1)*bw)));
+    const purity=((st.u+st.r)/st.tot*100);
+    PANEL.innerHTML='<b>t = '+t+(t===at?' <span class="chip ok">= 自动选择</span>':' <span class="chip info">自动选择为 t='+at+'</span>')+'</b>'
+      +'<div class="kv"><span>高频 (k,t)-mer 总数</span><b>'+st.tot.toFixed(0)+'k</b></div>'
+      +'<div class="kv"><span style="color:#16a34a">其中基因组·唯一</span><b>'+st.u.toFixed(0)+'k</b></div>'
+      +'<div class="kv"><span style="color:#dc2626">其中基因组·重复</span><b>'+st.r.toFixed(1)+'k</b></div>'
+      +'<div class="kv"><span style="color:#2563eb">其中非基因组(假阳性)</span><b>'+st.n.toFixed(0)+'k</b></div>'
+      +'<div class="kv"><span>固体集合的基因组纯度</span><b>'+purity.toFixed(1)+'%</b></div>'
+      +'<div class="kv"><span>S(t) vs 基因组 4.64M</span><b>'+(st.tot>=G?'≥ ✓':'< ✗ (停止)')+'</b></div>'
+      +(t<at?'<div style="margin-top:8px;color:#b45309;font-size:12.5px">t 偏小:混入大量低频错误 k-mer,A-Bruijn 图变缠结。</div>':'')
+      +(t>at?'<div style="margin-top:8px;color:#b45309;font-size:12.5px">t 偏大:丢掉过多真基因组 k-mer,骨架出现空洞。</div>':'');
+    badge.textContent='自动 t = '+at;}
+  CTRL.innerHTML='';
+  const lab=D('sld',CTRL);lab.innerHTML='阈值 t <b></b>';slider=document.createElement('input');slider.type='range';slider.min=1;slider.max=20;slider.value=7;lab.appendChild(slider);
+  badge=D('chip ok',CTRL,'');badge.style.marginLeft='4px';
+  slider.addEventListener('input',draw);
+  draw();
+})();
+
+/* ================= W3 jump-子路径 DP ================= */
+(function(){
+  const root=document.getElementById('w3');
+  const CTRL=document.getElementById('w3ctrl'),BOX=document.getElementById('w3svg'),PANEL=document.getElementById('w3panel'),CAP=document.getElementById('w3cap');
+  const DSETS={
+    normal:{name:'正常重叠读段对',desc:'读段 A、B 来自基因组同一区域的两次采样,含各自独有锚点与高频错误产生的「垃圾锚点」。',
+      A:{start:620,end:7780,vs:[['U1',620,'a'],['L1',1300,'s'],['L2',1990,'s'],['E1',2500,'j'],['L3',2760,'s'],['L4',3440,'s'],['L5',4210,'s'],['L6',4880,'s'],['L7',5650,'s'],['L8',6320,'s'],['L9',7090,'s'],['U2',7780,'a']]},
+      B:{start:950,end:8500,vs:[['U3',950,'b'],['L1',1300,'s'],['L2',1990,'s'],['L3',2760,'s'],['L4',3440,'s'],['E2',4000,'j'],['L5',4210,'s'],['L6',4880,'s'],['L7',5650,'s'],['L8',6320,'s'],['L9',7090,'s'],['U4',7800,'b'],['U5',8500,'b']]}},
+    repeat:{name:'同一重复的两个拷贝(假阳性)',desc:'两条读段分别来自同一重复的两个拷贝:它们共享全部保守锚点(拷贝间歧异 <1% 时固体 k-mer 完全一致),因此被判为「重叠」——这是重复导致组装缠结的根源,须由后续的 most-consistent 选择与支持图聚类兜底。',
+      A:{start:120,end:5900,vs:[[0,200,'a']].map(x=>0)&&[['M1',200,'s'],['M2',900,'s'],['M3',1600,'s'],['M4',2300,'s'],['M5',3000,'s'],['M6',3700,'s'],['M7',4400,'s'],['M8',5100,'s'],['M9',5800,'s']]},
+      B:{start:220,end:6000,vs:[['M1',300,'s'],['M2',1000,'s'],['M3',1700,'s'],['M4',2400,'s'],['M5',3100,'s'],['M6',3800,'s'],['M7',4500,'s'],['M8',5200,'s'],['M9',5900,'s']]}}};
+  const vcol={s:COL.blue,a:COL.green,b:COL.orange,j:COL.red};
+  const W=780,H=280,X0=50,XW=700,SCOPE=9000;
+  const xOf=p=>X0+p/SCOPE*XW;
+  let ds='normal',slJump,slMin,slMax;
+  function dp(A,B,jump){
+    const mapB=new Map();B.vs.forEach((v,i)=>mapB.set(v[0],i));
+    const sh=[];A.vs.forEach((v,i)=>{const b=mapB.get(v[0]);if(b!==undefined)sh.push({i,b});});
+    const m=sh.length,span=new Array(m).fill(0),par=new Array(m).fill(-1);
+    let best=0,bi=-1;
+    for(let j=0;j<m;j++){const pj=A.vs[sh[j].i][1],qj=B.vs[sh[j].b][1];
+      for(let i=0;i<j;i++){if(sh[i].b>=sh[j].b)continue;
+        const dA=pj-A.vs[sh[i].i][1],dB=qj-B.vs[sh[i].b][1];
+        if(dA<=jump&&dB<=jump&&span[i]+dA>span[j]){span[j]=span[i]+dA;par[j]=i;}}
+      if(span[j]>best){best=span[j];bi=j;}}
+    const path=[];let k=bi;while(k>=0){path.unshift(sh[k]);k=par[k];}
+    return{span:best,path};}
+  function draw(){
+    const DS=DSETS[ds],A=DS.A,B=DS.B,jump=+slJump.value,minO=+slMin.value,maxO=+slMax.value;
+    const r=dp(A,B,jump);
+    BOX.innerHTML='';const svg=S('svg',{width:W,height:H},BOX);
+    // lanes
+    S('text',{x:8,y:46,'font-size':12,fill:'#6b7280'},svg).textContent='Read A';
+    S('text',{x:8,y:196,'font-size':12,fill:'#6b7280'},svg).textContent='Read B';
+    const lanes=[{y:60,read:A,color:'#93c5fd'},{y:210,read:B,color:'#fdba74'}];
+    lanes.forEach(ln=>{const st=ds==='normal'?(ln.read===A?620:950):(ln.read===A?120:220);
+      const en=ds==='normal'?(ln.read===A?7780:8500):(ln.read===A?5900:6000);
+      S('rect',{x:xOf(st),y:ln.y,width:xOf(en)-xOf(st),height:22,rx:6,fill:ln.color,opacity:.35},svg);});
+    // vertices
+    const put=(vs,y,tag)=>vs.forEach(v=>{const c=S('circle',{cx:xOf(v[1]),cy:y+11,r:v[2]==='j'?5:6,fill:vcol[v[2]],stroke:'#fff','stroke-width':1.5,cursor:'pointer'},svg);
+      const t=S('title',{},c);t.textContent=(v[2]==='j'?'垃圾锚点 ':'锚点 ')+v[0]+' @ '+v[1]+(v[2]==='s'?'(共享)':v[2]==='j'?'(仅此读段高频)':'(独有)');
+      S('text',{x:xOf(v[1]),y:y-3,'font-size':8.5,fill:'#9ca3af','text-anchor':'middle'},svg).textContent=v[0];});
+    put(A.vs,60);put(B.vs,210);
+    // shared connecting curves for jump-connected consecutive shared pairs (not just chosen)
+    const mapB=new Map();B.vs.forEach((v,i)=>mapB.set(v[0],i));
+    const shA=A.vs.map((v,i)=>({v,i,b:mapB.get(v[0])})).filter(s=>s.b!==undefined);
+    // chosen subpath
+    const chosen=r.path.map(s=>({a:A.vs[s.i],b:B.vs[s.b]}));
+    // thick polylines
+    if(chosen.length>1){
+      const pa=chosen.map(c=>xOf(c.a[1])+','+(60+11)).join(' ');
+      const pb=chosen.map(c=>xOf(c.b[1])+','+(210+11)).join(' ');
+      S('polyline',{points:pa,fill:'none',stroke:COL.purple,'stroke-width':5,'stroke-linecap':'round',opacity:.85},svg);
+      S('polyline',{points:pb,fill:'none',stroke:COL.purple,'stroke-width':5,'stroke-linecap':'round',opacity:.85},svg);}
+    chosen.forEach(c=>{S('circle',{cx:xOf(c.a[1]),cy:71,r:9,fill:'none',stroke:COL.purple,'stroke-width':2.5},svg);
+      S('circle',{cx:xOf(c.b[1]),cy:221,r:9,fill:'none',stroke:COL.purple,'stroke-width':2.5},svg);});
+    // span + overhang brackets under lane A
+    if(chosen.length>1){const f=chosen[0],l=chosen[chosen.length-1];
+      const yb=108;
+      S('line',{x1:xOf(f.a[1]),y1:yb,x2:xOf(l.a[1]),y2:yb,stroke:COL.purple,'stroke-width':2},svg);
+      S('text',{x:(xOf(f.a[1])+xOf(l.a[1]))/2,y:yb+14,'font-size':11,fill:COL.purple,'text-anchor':'middle','font-weight':700},svg).textContent='span = '+r.span+' bp';
+      // overhangs
+      const ohL=Math.min(f.a[1]-A.start,f.b[1]-B.start),ohR=Math.min(A.end-l.a[1],B.end-l.b[1]);
+      const drawOH=(x1,x2,y,txt,col)=>{S('line',{x1,y1:y,x2,y2:y,stroke:col,'stroke-width':2,'stroke-dasharray':'3,3'},svg);S('text',{x:(x1+x2)/2,y:y-6,'font-size':10,fill:col,'text-anchor':'middle'},svg).textContent=txt;};
+      drawOH(xOf(Math.min(A.start,B.start)),xOf(f.a[1]),132,'左悬突 '+ohL,COL.amber);
+      drawOH(xOf(l.a[1]),xOf(Math.max(A.end,B.end)),132,'右悬突 '+ohR,COL.amber);}}
+  function verdict(){
+    const DS=DSETS[ds],A=DS.A,B=DS.B,jump=+slJump.value,minO=+slMin.value,maxO=+slMax.value;
+    const r=dp(A,B,jump);
+    let ohL=0,ohR=0;
+    if(r.path.length>1){const f=r.path[0],l=r.path[r.path.length-1];
+      const fa=A.vs[f.i],fb=B.vs[f.b],la=A.vs[l.i],lb=B.vs[l.b];
+      ohL=Math.min(fa[1]-A.start,fb[1]-B.start);ohR=Math.min(A.end-la[1],B.end-lb[1]);}
+    const ok=r.span>=minO&&ohL<=maxO&&ohR<=maxO&&r.path.length>1;
+    PANEL.innerHTML='<b>公共 jump-子路径</b><div class="kv"><span>顶点数</span><b>'+r.path.length+'</b></div>'
+      +'<div class="kv"><span>跨度 span</span><b>'+r.span+' bp</b></div>'
+      +'<div class="kv"><span>左悬突</span><b>'+ohL+' bp</b></div>'
+      +'<div class="kv"><span>右悬突</span><b>'+ohR+' bp</b></div>'
+      +'<div class="kv"><span>minOverlap / maxOverhang</span><b>'+minO+' / '+maxO+'</b></div>'
+      +'<div style="margin-top:8px"><span class="chip '+(ok?'ok':'bad')+'">'+(ok?'✓ 判定重叠':'✗ 不重叠')+'</span>'
+      +(ds==='repeat'&&ok?' <span class="chip warn">假阳性</span>':'')+'</div>';
+    CAP.innerHTML='<b>'+DS.name+'</b> — '+DS.desc+' jump='+jump+' 时:链在 d>jump 处断开,span='
+      +r.span+' bp'+(r.span<minO?' < minOverlap → 漏检':(ok?' → 通过判定':' → 悬突超限'));}
+  // controls
+  CTRL.innerHTML='';
+  const row=D('',CTRL);row.style.cssText='display:flex;gap:14px;flex-wrap:wrap;align-items:center';
+  BTN('数据集:正常重叠',row,()=>{ds='normal';draw();},'mini ghost');
+  BTN('数据集:重复拷贝',row,()=>{ds='repeat';draw();},'mini ghost');
+  slJump=SLD(row,'jump',200,2000,1000,50);
+  slMin=SLD(row,'minOverlap',1000,8000,4000,500);
+  slMax=SLD(row,'maxOverhang',200,2000,1000,50);
+  BTN('预设: jump=700(漏检演示)',row,()=>{slJump.value=700;slJump.dispatchEvent(new Event('input'));},'mini ghost');
+  BTN('预设: jump=1000(论文量级)',row,()=>{slJump.value=1000;slJump.dispatchEvent(new Event('input'));},'mini ghost');
+  [slJump,slMin,slMax].forEach(s=>s.addEventListener('input',()=>{draw();verdict();}));
+  draw();verdict();
+})();
+
+/* ================= W4 most-consistent 选择 ================= */
+(function(){
+  const root=document.getElementById('w4');
+  const CTRL=document.getElementById('w4ctrl'),BOX=document.getElementById('w4svg'),TB=document.getElementById('w4table'),CAP=document.getElementById('w4cap');
+  // genome-line model: growing path [0,5000]; candidates
+  const CAND=[
+    {id:'C1',x0:1500,x1:6300,type:'norm'},
+    {id:'C2',x0:2000,x1:5900,type:'short'},
+    {id:'C3',x0:1800,x1:6700,type:'chim',split:6100},
+    {id:'C4',x0:1600,x1:6500,type:'norm'},
+    {id:'C5',x0:2100,x1:6200,type:'norm'}];
+  CAND.forEach(c=>{c.rs=CAND.filter(o=>o.x1>c.x1+50).length; c.ls=CAND.filter(o=>o.x1<c.x1-50).length; c.sup=Math.min(c.rs,c.ls);});
+  const winner=CAND.reduce((a,b)=>b.sup>a.sup?b:a);
+  const W=780,H=330,X0=40,XW=700,MAXC=7000;
+  const xOf=p=>X0+p/MAXC*XW;
+  let stage=0,extT=0,anim=null;
+  function draw(){
+    BOX.innerHTML='';const svg=S('svg',{width:W,height:H},BOX);
+    S('line',{x1:X0,y1:H-28,x2:X0+XW,y2:H-28,stroke:'#e5e7eb'},svg);
+    for(let g=0;g<=MAXC;g+=1000)S('text',{x:xOf(g),y:H-12,'font-size':9.5,fill:'#9ca3af','text-anchor':'middle'},svg).textContent=g/1000+'k';
+    // candidates
+    const rows=[62,102,142,182,222];
+    CAND.forEach((c,i)=>{const y=rows[i];
+      const g=S('g',{cursor:'pointer'},svg);
+      const common=S('rect',{x:xOf(c.x0),y:y,width:xOf((c.type==='chim'?c.split:c.x1))-xOf(c.x0),height:20,rx:5,fill:c.type==='chim'?'#fca5a5':(c.id===winner.id&&stage>=4?'#86efac':'#bfdbfe'),stroke:'#60a5fa','stroke-width':1},g);
+      if(c.type==='chim')S('rect',{x:xOf(c.split),y:y,width:xOf(c.x1)-xOf(c.split),height:20,rx:5,fill:'none',stroke:COL.red,'stroke-dasharray':'4,3'},g),
+        S('line',{x1:xOf(c.split),y1:y,x2:xOf(c.x1),y2:y,stroke:COL.red,'stroke-width':2,'stroke-dasharray':'4,3'},g);
+      S('text',{x:xOf(c.x0)-8,y:y+14,'font-size':11,'font-weight':700,fill:'#374151','text-anchor':'end'},g).textContent=c.id+(c.type==='chim'?'(嵌合)':c.type==='short'?'(过短)':'');
+      const tt=S('title',{},g);tt.textContent=c.id+': ['+c.x0+','+c.x1+']  被支持 '+c.rs+' / 支持 '+c.ls+' / Support='+c.sup;
+      // support arrows when stage>=2
+      if(stage>=2){CAND.forEach(o=>{if(o.x1>c.x1+50){ // c is supported by o: arrow c -> o
+          S('path',{d:'M'+xOf(c.x1)+','+(y+10)+' C'+(xOf(c.x1)+40)+','+(y-14)+' '+(xOf(o.x1)-40)+','+(rows[CAND.indexOf(o)]-14)+' '+(xOf(o.x1)-6)+','+(rows[CAND.indexOf(o)]+10),fill:'none',stroke:'#a78bfa','stroke-width':1.2,'marker-end':'url(#ar4)',opacity:.55},svg);}
+        if(o.x1<c.x1-50){S('path',{d:'M'+xOf(c.x1)+','+(y+10)+' C'+(xOf(c.x1)+40)+','+(y+30)+' '+(xOf(o.x1)+40)+','+(rows[CAND.indexOf(o)]+30)+' '+(xOf(o.x1)+6)+','+(rows[CAND.indexOf(o)]+16),fill:'none',stroke:'#4ade80','stroke-width':1.2,'marker-end':'url(#ar5)',opacity:.5},svg);}});}
+      if(stage>=4&&c.id===winner.id)S('rect',{x:xOf(c.x0)-5,y:y-5,width:xOf(c.x1)-xOf(c.x0)+10,height:30,rx:8,fill:'none',stroke:COL.green,'stroke-width':2.5},svg);
+    });
+    // markers
+    const defs=S('defs',{},svg);
+    [['ar4','#a78bfa'],['ar5','#4ade80']].forEach(m=>{const mk=S('marker',{id:m[0],markerWidth:7,markerHeight:7,refX:6,refY:3.5,orient:'auto'},defs);S('path',{d:'M0,0 L7,3.5 L0,7 z',fill:m[1]},mk);});
+    // growing path
+    const gy=292,end=stage>=5?winner.x1:5000;
+    S('rect',{x:xOf(0),y:gy,width:xOf(5000)+ (xOf(end)-xOf(5000))*extT,height:22,rx:6,fill:COL.green,opacity:.85},svg);
+    S('text',{x:xOf(0),y:gy-6,'font-size':11,fill:COL.green,'font-weight':700},svg).textContent='growing path(绿色)'+(stage>=5?' → 已延伸至 '+winner.x1:'');
+    if(stage>=3){const y0=252;
+      CAND.forEach((c,i)=>{S('text',{x:xOf(c.x1)+4,y:rows[i]+14,'font-size':10,'font-weight':700,fill:c.sup>0?'#16a34a':'#dc2626'},svg).textContent='S='+c.sup;});
+      S('text',{x:X0,y:y0-6,'font-size':11,fill:'#6b7280'},svg).textContent='Support = min(被支持, 支持)';}
+  }
+  function table(){let h='<table class="data"><tr><th>候选</th><th>区间</th><th>被支持数 rightSupport</th><th>支持数 leftSupport</th><th>Support=min</th><th>状态</th></tr>';
+    CAND.forEach(c=>{h+='<tr'+(c.id===winner.id&&stage>=4?' class="win"':'')+'><td>'+c.id+(c.type==='chim'?'(嵌合)':c.type==='short'?'(过短)':'')+'</td><td class="mono">['+c.x0+','+c.x1+']</td><td>'+c.rs+'</td><td>'+c.ls+'</td><td>'+c.sup+'</td><td>'+(c.id===winner.id?'<span class="chip ok">most-consistent ✓</span>':(c.ls===0?'<span class="chip bad">无人支持→0</span>':c.rs===0?'<span class="chip bad">不支持任何人→0</span>':''))+'</td></tr>';});
+    TB.innerHTML=h+'</table>';}
+  const caps=['<b>第 1 步</b>:growing path(绿色)已到 5000 处停下,候选集 = 与其重叠的 5 条读段。其中 C3 是嵌合读段(红色虚线尾巴来自基因组其他位置),C2 过短。',
+    '<b>第 2 步</b>:显示支持关系。紫色箭头 c→o 表示「c 被 o 支持」(o 延伸更远);绿色箭头表示「c 支持 o」。注意嵌合的 C3:它的假尾巴让它显得延伸很远,于是「支持」所有人——但它自己不被任何人支持。',
+    '<b>第 3 步</b>:对每条候选计算 Support = min(被支持数, 支持数)。min() 同时压制两种坏读段:嵌合(C3: 支持 4 / 被支持 0)、过短(C2: 被支持 4 / 支持 0)。',
+    '<b>第 4 步</b>:选出 most-consistent = C1(Support=2)——与论文 Fig. 4(Top)「灰色路径 SupportPaths=2」一致。',
+    '<b>第 5 步</b>:growing path 延伸到 C1 的末端;随后用新候选集迭代,直到 contig 完成。'];
+  function setStage(s){stage=s;draw();table();CAP.innerHTML=caps[Math.max(0,Math.min(s-1,4))];
+    CTRL.querySelectorAll('button').forEach((b,i)=>{if(i>1)b.disabled=false;});}
+  CTRL.innerHTML='';
+  BTN('⟲ 重置',CTRL,()=>setStage(0),'mini ghost');
+  [1,2,3,4,5].forEach(s=>BTN('步骤 '+s,CTRL,()=>{setStage(s);if(s===5){const t0=performance.now();const tick=n=>{extT=Math.min(1,(n-t0)/600);draw();if(extT<1)anim=requestAnimationFrame(tick);};anim=requestAnimationFrame(tick);}},'mini'));
+  setStage(0);
+})();
+
+/* ================= W5 支持图聚类 ================= */
+(function(){
+  const root=document.getElementById('w5');
+  const CTRL=document.getElementById('w5ctrl'),BOX=document.getElementById('w5svg'),PANEL=document.getElementById('w5panel'),CAP=document.getElementById('w5cap');
+  const SCN={
+    A:{name:'场景 A:读段不落在重复末端(仿 Fig. 5 左)',
+      verts:[['r272'],['r275'],['r278'],['r281'],['r283'],['r285'],['r288'],['r293'],['r296'],['r299'],['r301'],['g 嵌合']].map(v=>v[0]),
+      edges:[['r272','r275'],['r272','r278'],['r275','r278'],['r275','r281'],['r278','r281'],['r278','r283'],['r281','r283'],['r281','r285'],['r283','r285'],['r283','r288'],['r285','r288'],['r285','r293'],['r288','r293'],['r288','r296'],['r293','r296'],['r293','r299'],['r296','r299'],['r296','r301'],['r299','r301'],['r281','g 嵌合'],['r283','g 嵌合'],['r285','g 嵌合']],
+      note:'11 条按基因组顺序排列的正常读段 + 1 条嵌合读段 g。g 支持很多人(入度大)却不被任何人支持(出度 0)。'},
+    B:{name:'场景 B:读段末端在重复里(m=2,仿 Fig. 4 下)',
+      verts:['b1','b2','b3','b4','b5','r1','r2','r3'],
+      edges:[['b1','b2'],['b1','b3'],['b1','b4'],['b1','b5'],['b2','b3'],['b2','b4'],['b2','b5'],['b3','b4'],['b3','b5'],['b4','b5'],['r1','r2'],['r1','r3'],['r2','r3'],['b1','r1'],['b1','r2'],['b1','r3']],
+      note:'growing path 停在倍数 2 的重复里:蓝色 5 条延伸到拷贝 A 侧,红色 3 条延伸到拷贝 B 侧。b1 最短,连红簇都被它「沾上」(b1 被所有红支持)——这正是 A-Bruijn 重叠判定不敏感的体现,但聚类照样分开两簇。'}};
+  const W=700,H=380,CX=330,CY=195,R2=138;
+  let scn='A',stage=0,clusters=[],removed=new Set();
+  function closure(V,E){const idx={};V.forEach((v,i)=>idx[v]=i);const n=V.length;
+    const reach=Array.from({length:n},()=>new Array(n).fill(false));
+    E.forEach(e=>{reach[idx[e[0]]][idx[e[1]]]=true;});
+    for(let k=0;k<n;k++)for(let i=0;i<n;i++)if(reach[i][k])for(let j=0;j<n;j++)if(reach[k][j])reach[i][j]=true;
+    return reach;}
+  function indeg(reach,j){let s=0;for(let i=0;i<reach.length;i++)if(reach[i][j]&&i!==j)s++;return s;}
+  function outdeg(reach,i){let s=0;for(let j=0;j<reach.length;j++)if(reach[i][j]&&i!==j)s++;return s;}
+  function draw(){
+    const SC=SCN[scn],V=SC.verts,E=SC.edges,reach=closure(V,E);
+    BOX.innerHTML='';const svg=S('svg',{width:W,height:H},BOX);
+    const pos={};V.forEach((v,i)=>{const a=-Math.PI/2+2*Math.PI*i/V.length;pos[v]=[CX+R2*Math.cos(a),CY+R2*Math.sin(a)];});
+    pos['g 嵌合']=[CX+R2+55,CY];if(scn==='B'){pos.b1=[CX+R2+45,CY-40];pos.r1=[CX+R2+45,CY+40];}
+    // edges of G (solid, skip removed)
+    E.forEach(e=>{const a=pos[e[0]],b=pos[e[1]];if(!a||!b||removed.has(e[0])||removed.has(e[1]))return;
+      S('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:'#cbd5e1','stroke-width':1.3},svg);});
+    // G* extra edges (dashed) when stage>=1
+    if(stage>=1){V.forEach((u,i)=>V.forEach((v,j)=>{if(i!==j&&reach[i][j]&&!E.some(e=>e[0]===u&&e[1]===v)&&!removed.has(u)&&!removed.has(v)){
+      const a=pos[u],b=pos[v];const mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2;
+      S('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:'#ddd6fe','stroke-width':1,'stroke-dasharray':'3,3'},svg);}}));}
+    // cluster halos
+    clusters.forEach((cl,ci)=>{const ps=cl.map(v=>pos[v]);const cx=ps.reduce((s,p)=>s+p[0],0)/ps.length,cy=ps.reduce((s,p)=>s+p[1],0)/ps.length;
+      const rad=Math.min(Math.max(...ps.map(p=>Math.hypot(p[0]-cx,p[1]-cy)))+22,118);
+      S('circle',{cx,cy,r:rad,fill:PAL[ci%PAL.length],opacity:.10},svg);
+      S('text',{x:cx,y:cy-rad+2,'font-size':11,fill:PAL[ci%PAL.length],'font-weight':700,'text-anchor':'middle'},svg).textContent='簇 '+(ci+1)+' ('+cl.length+')';});
+    // vertices
+    let curV=null;
+    if(stage>=2){let bd=-1;V.forEach((v,i)=>{if(removed.has(v))return;const d=indeg(reach,i);if(d>bd){bd=d;curV=v;}});}
+    V.forEach((v,i)=>{const p=pos[v];const isOut=removed.has(v);
+      let fill=COL.gray;
+      if(scn==='B')fill=v[0]==='b'?'#3b82f6':(v[0]==='r'?'#ef4444':'#9ca3af');
+      if(scn==='A')fill=v.startsWith('g')?'#22c55e':'#94a3b8';
+      const c=S('circle',{cx:p[0],cy:p[1],r:16,fill:isOut?'#e5e7eb':fill,opacity:isOut?.55:1,stroke:stage>=2&&curV===v?'#111827':'#fff','stroke-width':3,cursor:'pointer'},svg);
+      S('text',{x:p[0],y:p[1]+4,'font-size':9.5,'font-weight':700,fill:isOut?'#9ca3af':'#fff','text-anchor':'middle','pointer-events':'none'},svg).textContent=v.replace(' 嵌合','*');
+      const t=S('title',{},c);t.textContent=v+(isOut?'(已移出)':'')+': G* 入度 '+indeg(reach,i)+' / 出度 '+outdeg(reach,i);});
+    // highlight current cluster being removed
+    if(stage>=2&&curV){const ii=V.indexOf(curV);const preds=[];V.forEach((u,i)=>{if(!removed.has(u)&&(reach[i][ii]||u===curV))preds.push(u);});
+      preds.forEach(u=>{const p=pos[u];S('circle',{cx:p[0],cy:p[1],r:20,fill:'none',stroke:'#f59e0b','stroke-width':2,'stroke-dasharray':'4,3'},svg);});}
+  }
+  function panel(){
+    const SC=SCN[scn],V=SC.verts,reach=closure(V,SC.edges);
+    let h='<b>'+SC.name+'</b><div class="small" style="margin:6px 0">'+SC.note+'</div>';
+    if(stage<2)h+='<div class="small">点「下一簇」开始聚类。</div>';
+    else{
+      h+='<b>已移出的簇</b>';clusters.forEach((cl,i)=>h+='<div class="kv"><span>簇 '+(i+1)+'</span><b>'+cl.join(', ')+'</b></div>');
+      const rem=V.filter(v=>!removed.has(v));
+      if(rem.length===0){const verdict=clusters.length===1?'✓ 1 个簇 → 读段末端<b>不在</b>重复里,可安全选 most-consistent 延伸':'⚠ '+clusters.length+' 个簇 → 读段末端<b>在重复里</b>(簇数 ≈ 重复倍数 m='+(scn==='B'?2:'?')+'),延伸时须排除起点在重复里的候选';
+        h+='<div style="margin-top:8px"><span class="chip '+(clusters.length===1?'ok':'warn')+'">'+verdict+'</span></div>';}
+      else{let best=null,bd=-1;rem.forEach(v=>{const i=V.indexOf(v);const d=indeg(reach,i);if(d>bd){bd=d;best=v;}});
+        h+='<div class="small" style="margin-top:6px">剩余未聚类:'+rem.join(', ')+'</div><div class="small">当前最大入度:<b>'+best+'</b>(入度 '+bd+(bd>1?', > 1 → 继续移出一簇':', ≤ 1 → 停止')+')。</div>';}}
+    PANEL.innerHTML=h;}
+  function cap(){const SC=SCN[scn];
+    CAP.innerHTML=stage===0?'<b>'+SC.name+'</b> — '+SC.note
+      :stage===1?'<b>G → G*</b>:虚线为传递闭包新增边。「支持」关系沿链传递:被 A 支持的读段,也被支持 A 的更长者传递地支持。'
+      :(clusters.length&&SC.verts.every(v=>removed.has(v))?'<b>聚类完成</b> — 共 '+clusters.length+' 个簇。'+(clusters.length===1?'嵌合读段 g 不被任何人支持、没有出边,够不到簇核心,自然被排除——这正是 ABruijn 过滤嵌合读段的机制。':'不同拷贝的读段互不支持 → 各成一簇。ABruijn 据此判定「growing path 停在重复里」,并按决策规则排除起点在重复中的候选。'):'<b>聚类中</b>:每轮取最大入度顶点(黑描边),把它连同全部前驱(琥珀虚线圈)移为一簇。');}
+  function nextCluster(){
+    const SC=SCN[scn],V=SC.verts,reach=closure(V,SC.edges);
+    let best=null,bd=-1;V.forEach((v,i)=>{if(removed.has(v))return;const d=indeg(reach,i);if(d>bd){bd=d;best=v;}});
+    if(!best||bd<=1){stage=3;draw();panel();cap();return;}
+    const ii=V.indexOf(best);const cl=[];V.forEach((u,i)=>{if(!removed.has(u)&&(reach[i][ii]||u===best)){cl.push(u);}});
+    cl.forEach(u=>removed.add(u));clusters.push(cl);stage=2;draw();panel();cap();}
+  CTRL.innerHTML='';
+  const tabs=D('',CTRL);tabs.style.cssText='display:flex;gap:8px';
+  BTN('场景 A',tabs,()=>{scn='A';reset();},'mini ghost');
+  BTN('场景 B',tabs,()=>{scn='B';reset();},'mini ghost');
+  BTN('⟲ 重置',CTRL,()=>reset(),'mini ghost');
+  BTN('显示 G*',CTRL,()=>{stage=Math.max(stage,1);draw();panel();cap();},'mini');
+  BTN('移出下一簇 ▶',CTRL,()=>nextCluster(),'mini');
+  function reset(){stage=0;clusters=[];removed=new Set();draw();panel();cap();}
+  reset();
+})();
+
+/* ================= W6a 迷你比对/项链 ================= */
+(function(){
+  const root=document.getElementById('w6a');
+  const CTRL=document.getElementById('w6actrl'),TB=document.getElementById('w6atable');
+  const REF='CGATAGGAATCATTGTCATACCTGA'; // 25 cols
+  const READS=[
+    {name:'read1',ops:{}},
+    {name:'read2',ops:{sub:{9:'T'}}},
+    {name:'read3',ops:{sub:{10:'A'},ins:{16:'T'}}},
+    {name:'read4',ops:{del:[5]}},
+    {name:'read5',ops:{ins:{16:'A'}}},
+    {name:'read6',ops:{ins:{17:'C'}}}];
+  // build tokens per column
+  const rows=READS.map(r=>{const toks=[];for(let i=1;i<=REF.length;i++){
+    let base=REF[i-1],del=false;
+    if(r.ops.del&&r.ops.del.includes(i)){del=true;}
+    if(r.ops.sub&&r.ops.sub[i])base=r.ops.sub[i];
+    toks.push({base,del,ins:(r.ops.ins&&r.ops.ins[i])||''});}return toks;});
+  // column stats
+  const stats=REF.split('').map((c,i)=>{let m=0,s=0,d=0;
+    rows.forEach(r=>{const t=r[i];if(t.del)d++;else if(t.base===c)m++;else s++;});
+    const ins=rows.reduce((a,r)=>a+r[i].ins.length,0);
+    return{m,s,d,ins,cov:m+s+d};});
+  // solid 4-mers
+  const L=4,ALPHA=.8,BETA=.2;
+  const solid=[];for(let s0=1;s0+L-1<=REF.length;s0++){let mr=1,ir=0;
+    for(let i=s0;i<s0+L;i++){mr=Math.min(mr,stats[i-1].m/stats[i-1].cov);ir=Math.max(ir,stats[i-1].ins/stats[i-1].cov);}
+    solid.push({s0,ok:mr>ALPHA&&ir<=BETA});}
+  const LMS=[5,19]; // landmarks
+  const NECKS=[[1,4],[5,18],[19,25]];
+  const neckCol=['#7c3aed','#0d9488','#ea580c'];
+  function cell(t,ref,i,showLM){let cls='',txt='';
+    if(t.del){cls='c-del';txt='–';}
+    else{txt=t.base;if(t.base!==ref)cls='c-sub';}
+    let insH='';if(t.ins)insH='<sup class="c-ins">'+t.ins+'</sup>';
+    if(showLM&&LMS.includes(i))txt='<span class="c-lm">◆</span>'+txt;
+    return '<td class="'+cls+'" title="列 '+i+': Match '+stats[i-1].m+' / Sub '+stats[i-1].s+' / Del '+stats[i-1].d+' / Ins '+stats[i-1].ins+'">'+txt+insH+'</td>';}
+  function render(showSolid,showLM,showNeck){
+    let h='<table class="alignT" style="width:100%">';
+    h+='<tr><td style="text-align:right;padding-right:8px;color:#6b7280">列</td>';
+    for(let i=1;i<=REF.length;i++)h+='<td style="color:#9ca3af;font-size:10px">'+i+'</td>';h+='</tr>';
+    h+='<tr><td style="text-align:right;padding-right:8px;font-weight:700">草图 ref</td>';
+    REF.split('').forEach((c,i)=>{h+='<td'+(showLM&&LMS.includes(i+1)?' style="color:#7c3aed;font-weight:800"':'')+' title="参考碱基">'+c+'</td>';});h+='</tr>';
+    READS.forEach((r,ri)=>{h+='<tr><td style="text-align:right;padding-right:8px;color:#6b7280">'+r.name+'</td>';
+      rows[ri].forEach((t,i)=>h+=cell(t,REF[i],i+1,showLM));h+='</tr>';});
+    // stats
+    h+='<tr><td style="text-align:right;padding-right:8px;color:#6b7280">Match/Cov</td>';
+    stats.forEach(st=>{const rr=st.m/st.cov;h+='<td style="font-size:10px;background:'+(rr>.8?'#dcfce7':rr>.6?'#fef3c7':'#fee2e2')+'" title="Match '+st.m+'/'+st.cov+'">'+(rr).toFixed(2)+'</td>';});h+='</tr>';
+    h+='<tr><td style="text-align:right;padding-right:8px;color:#6b7280">Ins/Cov</td>';
+    stats.forEach(st=>{const rr=st.ins/st.cov;h+='<td style="font-size:10px;background:'+(rr<=.2?'#dcfce7':'#fee2e2')+'" title="Ins '+st.ins+'/'+st.cov+'">'+(rr).toFixed(2)+'</td>';});h+='</tr>';
+    if(showSolid){h+='<tr><td style="text-align:right;padding-right:8px;color:#6b7280">固体 4-mer</td>';
+      for(let i=1;i<=REF.length;i++){const ss=solid.find(x=>x.s0===i);
+        h+='<td style="font-size:9px;color:'+(ss?(ss.ok?'#15803d':'#b91c1c'):'#f3f4f6')+'">'+(ss?(ss.ok?'✓':'✗'):'·')+'</td>';}
+      h+='</tr>';}
+    if(showNeck){h+='<tr><td style="text-align:right;padding-right:8px;color:#6b7280">项链</td>';
+      for(let i=1;i<=REF.length;i++){const ni=NECKS.findIndex(n=>i>=n[0]&&i<=n[1]);h+='<td style="padding:0;background:'+neckCol[ni]+';border-radius:0"></td>';}
+      h+='</tr>';}
+    h+='</table>';
+    if(showNeck){h+='<div class="small" style="margin-top:8px"><b>各项链的读段片段</b>(每个即一个迷你比对):<br>';
+      NECKS.forEach((nk,ni)=>{h+='<span style="color:'+neckCol[ni]+';font-weight:700">项链 '+(ni+1)+'(列 '+nk[0]+'–'+nk[1]+')</span>:';
+        h+=READS.map((r,ri)=>{let s='';for(let i=nk[0];i<=nk[1];i++){const t=rows[ri][i-1];if(!t.del)s+=t.base;if(t.ins)s+=t.ins;}
+          return '<span class="mono">'+s+'</span>';}).join(' · ')+'<br>';});
+      h+='</div>';}
+    TB.innerHTML=h;}
+  CTRL.innerHTML='';
+  let showSolid=true,showLM=false,showNeck=false;
+  const b1=BTN('切换:固体 4-mer 行',CTRL,()=>{showSolid=!showSolid;render(showSolid,showLM,showNeck);},'mini ghost');
+  const b2=BTN('② 放置地标 ◆',CTRL,()=>{showLM=true;render(showSolid,showLM,showNeck);},'mini');
+  const b3=BTN('③ 切分项链',CTRL,()=>{showNeck=true;showLM=true;render(showSolid,showLM,showNeck);},'mini');
+  BTN('⟲ 重置',CTRL,()=>{showLM=false;showNeck=false;render(showSolid,false,false);},'mini ghost');
+  render(true,false,false);
+})();
+
+/* ================= W6b 项链概率共识 ================= */
+(function(){
+  const root=document.getElementById('w6b');
+  const CTRL=document.getElementById('w6bctrl'),SEGD=document.getElementById('w6bseg'),CONSD=document.getElementById('w6bcons'),PRD=document.getElementById('w6bpr'),MUTD=document.getElementById('w6bmut'),LOG=document.getElementById('w6blog');
+  const SEGS=['GAATCA','GATTCA','GAAACA','GAAGTA','GAATCA','GAATCA'];
+  const R={m:Math.log(.55),s:Math.log(.12),dc:Math.log(.15),di:Math.log(.18)};
+  function alignScore(seg,cons){
+    const n=seg.length,m=cons.length;
+    const dp=Array.from({length:n+1},()=>new Array(m+1).fill(-1e9));
+    dp[0][0]=0;
+    for(let i=0;i<=n;i++)for(let j=0;j<=m;j++){
+      if(dp[i][j]<-1e8)continue;
+      if(i<n&&j<m){const sc=dp[i][j]+(seg[i]===cons[j]?R.m:R.s);if(sc>dp[i+1][j+1])dp[i+1][j+1]=sc;}
+      if(j<m){const sc=dp[i][j]+R.di;if(sc>dp[i][j+1])dp[i][j+1]=sc;} // seg has extra base (insertion vs cons)
+      if(i<n){const sc=dp[i][j]+R.dc;if(sc>dp[i+1][j])dp[i+1][j]=sc;}}
+    return dp[n][m];}
+  function totalPr(cons){return SEGS.reduce((s,g)=>s+alignScore(g,cons),0);}
+  function mutations(cons){const out=[];const bases=['A','C','G','T'];
+    for(let i=0;i<cons.length;i++)for(const b of bases)if(b!==cons[i])out.push({t:'sub',i,b});
+    for(let i=0;i<=cons.length;i++)for(const b of bases)out.push({t:'ins',i,b});
+    for(let i=0;i<cons.length;i++)out.push({t:'del',i});
+    return out;}
+  function apply(cons,mt){if(mt.t==='sub')return cons.slice(0,mt.i)+mt.b+cons.slice(mt.i+1);
+    if(mt.t==='ins')return cons.slice(0,mt.i)+mt.b+cons.slice(mt.i);
+    return cons.slice(0,mt.i)+cons.slice(mt.i+1);}
+  let cons='GAATCA',iter=0;
+  function render(){CONSD.textContent=cons;PRD.textContent=totalPr(cons).toFixed(3)+'(log)';
+    SEGD.innerHTML='<b>项链片段 Segments</b> = '+SEGS.map(s=>'<span class="mono" style="background:#eef2ff;padding:1px 6px;border-radius:4px;margin-right:4px">'+s+'</span>').join('')+'<span class="small">(6 条读段片段;速率:match 0.55 / mismatch 0.12 / 插入 0.18 / 缺失 0.15)</span>';
+    // best mutation preview
+    const cur=totalPr(cons);let best=null;
+    mutations(cons).forEach(mt=>{const v=totalPr(apply(cons,mt));if(!best||v>best.v)best={mt,v};});
+    if(best&&best.v>cur+1e-9)MUTD.innerHTML='最优变异:<span class="mono hl">'+mtStr(best.mt)+'</span> → '+best.v.toFixed(3)+'(Δ +'+(best.v-cur).toFixed(3)+')';
+    else MUTD.innerHTML='<span class="chip ok">已收敛:没有任何单点变异能提升似然</span>';}
+  function mtStr(mt){return mt.t==='sub'?('替换 '+cons[mt.i]+'→'+mt.b+' @'+(mt.i+1)):mt.t==='ins'?('插入 '+mt.b+' @'+(mt.i+1)):('删除 '+cons[mt.i]+' @'+(mt.i+1));}
+  function step(){
+    const cur=totalPr(cons);let best=null;
+    mutations(cons).forEach(mt=>{const v=totalPr(apply(cons,mt));if(!best||v>best.v)best={mt,v};});
+    if(best&&best.v>cur+1e-9){const old=cons;cons=apply(cons,best.mt);iter++;
+      LOG.innerHTML+='<div><span class="hl">iter '+iter+'</span> '+mtStr(best.mt)+' : '+old+' → <b>'+cons+'</b> <span class="up">Δ+'+(best.v-cur).toFixed(3)+'</span></div>';
+      LOG.scrollTop=LOG.scrollHeight;render();}
+    else LOG.innerHTML+='<div>已收敛(共 '+iter+' 次变异)。</div>';}
+  CTRL.innerHTML='';
+  BTN('单步 ▶',CTRL,()=>step(),'mini');
+  BTN('自动收敛',CTRL,()=>{let g=0;const t=setInterval(()=>{const cur=totalPr(cons);let best=null;
+      mutations(cons).forEach(mt=>{const v=totalPr(apply(cons,mt));if(!best||v>best.v)best={mt,v};});
+      if(best&&best.v>cur+1e-9&&g<12){step();g++;}else{clearInterval(t);render();}},60);},'mini');
+  BTN('⟲ 从 GAATCA 重置',CTRL,()=>{cons='GAATCA';iter=0;LOG.innerHTML='';render();},'mini ghost');
+  BTN('从错误共识开始:GTCCTA',CTRL,()=>{cons='GTCCTA';iter=0;LOG.innerHTML='<div>初始(错误)共识:GTCCTA</div>';render();},'mini ghost');
+  render();
+})();
+
+/* ================= W6c 同核苷酸串似然 ================= */
+(function(){
+  const root=document.getElementById('w6c');
+  const CTRL=document.getElementById('w6cctrl'),BOX=document.getElementById('w6csvg'),PANEL=document.getElementById('w6cpanel');
+  const fTable=[[-2,.04],[-1,.15],[0,.45],[1,.18],[2,.06]];
+  const SEGSTR=['5A','6A','6A','7A','6A1C'];
+  function pObs(seg,L){
+    const m1=seg.match(/^(\d+)A$/);
+    if(m1){const k=+m1[1],d=k-L;const f=fTable.find(x=>x[0]===d);return f?f[1]:0.01;}
+    const m2=seg.match(/^(\d+)A1X$/)===null&&seg.match(/^(\d+)A1C$/);
+    if(m2){const k=+m2[1],d=k-L;if(d===0)return .06;if(d===-1)return .03;if(d===1)return .03;return .005;}
+    return .005;}
+  function prL(L){return SEGSTR.reduce((s,seg)=>s*pObs(seg,L),1);}
+  const W=640,H=260,L0=44;
+  let slider;
+  function draw(){BOX.innerHTML='';const svg=S('svg',{width:W,height:H},BOX);
+    const Ls=[4,5,6,7,8,9];const vals=Ls.map(prL);
+    const lgArr=vals.map(v=>Math.log10(v));
+    const hi=Math.max(...lgArr),lo=Math.min(...lgArr);
+    const bw=(W-L0-20)/Ls.length;
+    const t=+slider.value;
+    Ls.forEach((L,i)=>{const v=vals[i];const lg=lgArr[i];
+      const h=18+180*(lg-lo)/((hi-lo)||1);const x=L0+i*bw+8;
+      S('rect',{x,y:H-40-h,width:bw-16,height:h,fill:L===t?'#0d9488':'#99f6e4',rx:4},svg);
+      const tt=S('title',{},svg.lastChild);tt.textContent='Pr(Segments|'+L+'A) = '+v.toExponential(2);
+      S('text',{x:x+(bw-16)/2,y:H-24,'font-size':12,'font-weight':L===t?800:400,fill:L===t?'#0f766e':'#6b7280','text-anchor':'middle'},svg).textContent=L+'A';
+      S('text',{x:x+(bw-16)/2,y:H-44-h,'font-size':9.5,fill:'#6b7280','text-anchor':'middle'},svg).textContent=v.toExponential(1);});
+    S('text',{x:12,y:24,'font-size':12,fill:'#374151','font-weight':700},svg).textContent='Pr(Segments | run 长度 L·A)(对数高度)';
+    // factors for chosen L
+    PANEL.innerHTML='<b>L = '+t+'A 时各片段的似然因子</b>'+SEGSTR.map(sg=>{const p=pObs(sg,t);
+      return '<div class="kv"><span class="mono">'+sg+'</span><b>'+p+'</b></div>';}).join('')
+      +'<div class="kv" style="border-bottom:none"><span><b>乘积</b></span><b>'+prL(t).toExponential(2)+'</b></div>'
+      +(t===6?'<div style="margin-top:6px"><span class="chip ok">argmax ✓ 与论文一致:选 6A 而非 7A</span></div>':'');
+  }
+  CTRL.innerHTML='';
+  const lab=D('sld',CTRL);lab.innerHTML='假设的 run 长度 L <b></b>';slider=document.createElement('input');slider.type='range';slider.min=4;slider.max=9;slider.value=7;lab.appendChild(slider);
+  slider.addEventListener('input',draw);draw();
+})();
+
+/* ================= W7 降采样错误率图表 ================= */
+(function(){
+  const root=document.getElementById('w7');
+  const CTRL=document.getElementById('w7ctrl'),BOX=document.getElementById('w7svg');
+  const covs=[25,30,35,40,45,50];
+  const SERIES={
+    'CANU':{c:'#dc2626',v:[3053,2470,1541,1158,829,703]},
+    'ABruijn':{c:'#4f46e5',v:[687,291,153,84,45,33]},
+    'CANU+Quiver':{c:'#f59e0b',v:[322,175,88,45,29,20]},
+    'ABruijn+Quiver':{c:'#0d9488',v:[329,154,84,45,29,18]}};
+  const W=760,H=340,L=56,B=40;
+  const xOf=c=>L+(c-25)/25*(W-L-16);
+  const yOf=v=>H-B-(v/3200)*(H-B-16);
+  let svg;
+  function draw(){BOX.innerHTML='';svg=S('svg',{width:W,height:H},BOX);
+    for(const g of [0,500,1000,1500,2000,2500,3000]){S('line',{x1:L,x2:W-16,y1:yOf(g),y2:yOf(g),stroke:'#eef0f4'},svg);
+      S('text',{x:L-8,y:yOf(g)+4,'font-size':10,fill:'#9ca3af','text-anchor':'end'},svg).textContent=g;}
+    for(const c of covs)S('text',{x:xOf(c),y:H-B+16,'font-size':10.5,fill:'#9ca3af','text-anchor':'middle'},svg).textContent=c+'×';
+    S('text',{x:(L+W)/2,y:H-4,'font-size':11.5,fill:'#6b7280','text-anchor':'middle'},svg).textContent='测序覆盖度';
+    S('text',{x:14,y:18,'font-size':11.5,fill:'#6b7280'},svg).textContent='全基因组碱基错误数';
+    for(const name in SERIES){const sr=SERIES[name];
+      if(!document.getElementById('cb_'+name).checked)continue;
+      const pts=covs.map((c,i)=>xOf(c)+','+yOf(sr.v[i])).join(' ');
+      S('polyline',{points:pts,fill:'none',stroke:sr.c,'stroke-width':2.5},svg);
+      covs.forEach((c,i)=>{const dot=S('circle',{cx:xOf(c),cy:yOf(sr.v[i]),r:4.5,fill:sr.c,stroke:'#fff','stroke-width':1.5,cursor:'pointer'},svg);
+        const t=S('title',{},dot);t.textContent=name+' @ '+c+'×: '+sr.v[i]+' 错误';});}}
+  CTRL.innerHTML='';
+  for(const name in SERIES){const cb=document.createElement('label');cb.style.cssText='display:flex;gap:6px;align-items:center;font-size:13.5px;cursor:pointer';
+    cb.innerHTML='<input type="checkbox" id="cb_'+name+'" checked style="accent-color:'+SERIES[name].c+'"><span style="color:'+SERIES[name].c+';font-weight:600">'+name+'</span>';
+    CTRL.appendChild(cb);cb.querySelector('input').addEventListener('change',draw);}
+  draw();
+})();
+
+/* ================= S7 结果表 ================= */
+(function(){
+  const TB=document.getElementById('w7table');
+  const rows=[
+    ['BLS(Xanthomonas,234×)','73','5','51','31'],
+    ['PXO(Xanthomonas,141×)','1,162','21','130','15'],
+    ['ECOLI(55×)','637','19','14','15'],
+    ['ECOLI 50×','703','33','20','18'],
+    ['ECOLI 40×','1,158','84','45','45'],
+    ['ECOLI 30×','2,470','291','175','154'],
+    ['ECOLI 25×','3,053','687','322','329']];
+  let h='<tr><th>数据集</th><th>CANU</th><th>ABruijn</th><th>CANU+Quiver</th><th>ABruijn+Quiver</th></tr>';
+  rows.forEach(r=>{h+='<tr><td style="text-align:left">'+r[0]+'</td>'+r.slice(1).map((v,i)=>'<td'+(i===1?' style="color:#4f46e5;font-weight:700"':'')+'>'+v+'</td>').join('')+'</tr>';});
+  TB.innerHTML=h;
+  const note=D('small',TB.parentNode,'注:30× 处 CANU 有一次重复实验未能拼出完整基因组,论文取其 5 次中较好的 4 次平均;ABruijn 全部 5 次均正确拼出单一环形 contig。');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flye 算法交互详解 · Assembly of Long Error-Prone Reads Using Repeat Graphs (2019)</title>
+<style>
+:root{--bg:#f4f9f8;--card:#ffffff;--ink:#1f2937;--mut:#6b7280;--acc:#0d9488;--accL:#ecfdf5;--ok:#16a34a;--warn:#d97706;--bad:#dc2626;--line:#e5e7eb}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:16px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+.hero{background:linear-gradient(135deg,#134e4a 0%,#0d9488 55%,#0891b2 100%);color:#fff;padding:46px 0 34px}
+.hero h1{margin:0 0 6px;font-size:26px;line-height:1.4}
+.hero .sub{font-size:16px;opacity:.92;margin-bottom:4px}
+.hero .meta{font-size:13.5px;opacity:.85}
+.badges{margin-top:14px;display:flex;flex-wrap:wrap;gap:8px}
+.badge{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.35);padding:3px 12px;border-radius:999px;font-size:13px}
+.tldr{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:22px}
+.tldr .card{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);border-radius:10px;padding:12px 14px;font-size:14px}
+.tldr .card b{display:block;margin-bottom:4px;font-size:14.5px}
+nav#topnav{position:sticky;top:0;z-index:60;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+nav#topnav .wrap{display:flex;gap:4px;overflow-x:auto;padding:8px 20px}
+nav#topnav a{white-space:nowrap;text-decoration:none;color:var(--mut);font-size:13.5px;padding:4px 10px;border-radius:8px}
+nav#topnav a.active{background:var(--accL);color:var(--acc);font-weight:600}
+section{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px 28px;margin:30px 0;scroll-margin-top:72px}
+section>h2{margin:0 0 4px;font-size:21px;color:var(--acc)}
+.figtag{display:inline-block;background:var(--accL);color:var(--acc);font-size:12px;padding:2px 10px;border-radius:999px;margin-left:8px;vertical-align:middle;font-weight:600}
+p.lead{color:var(--mut);font-size:14.5px;margin:2px 0 14px}
+.fig{background:#fafafa;border:1px solid var(--line);border-radius:12px;padding:16px;margin:16px 0}
+.ctrl{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:10px 0}
+.btn{background:var(--acc);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:14px;cursor:pointer}
+.btn:hover{filter:brightness(1.08)}
+.btn.ghost{background:#fff;color:var(--acc);border:1px solid var(--acc)}
+.btn.mini{padding:4px 10px;font-size:12.5px;border-radius:6px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.sld{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--mut)}
+.sld b{color:var(--ink);min-width:46px;display:inline-block}
+input[type=range]{accent-color:var(--acc);width:170px}
+.chip{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12.5px;font-weight:600}
+.chip.ok{background:#dcfce7;color:#15803d}.chip.bad{background:#fee2e2;color:#b91c1c}.chip.warn{background:#fef3c7;color:#b45309}.chip.info{background:var(--accL);color:var(--acc)}
+.stepcap{background:var(--accL);border-left:3px solid var(--acc);padding:9px 14px;border-radius:8px;font-size:14.5px;margin-top:10px;min-height:44px}
+details{margin:12px 0;border:1px solid var(--line);border-radius:10px;padding:0;background:#fcfcfd}
+details summary{cursor:pointer;padding:10px 16px;font-weight:600;font-size:14.5px;color:var(--acc);user-select:none}
+details .body{padding:2px 18px 14px;font-size:14.5px}
+details .body ul{padding-left:22px;margin:8px 0}
+table.data{border-collapse:collapse;margin:10px 0;font-size:13.5px;background:#fff}
+table.data td,table.data th{border:1px solid var(--line);padding:4px 9px;text-align:center}
+table.data th{background:var(--accL);color:var(--acc);cursor:pointer;user-select:none}
+table.data tr.flye{background:#f0fdfa;font-weight:600}
+.grid2{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}
+.grid2>.panel{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:13.5px}
+.panel .kv{display:flex;justify-content:space-between;margin:4px 0;border-bottom:1px dashed var(--line);padding-bottom:3px}
+.panel .kv b{font-variant-numeric:tabular-nums}
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch;margin:14px 0}
+.fnode{flex:1;min-width:88px;background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:9px 8px;text-align:center;font-size:12.5px;cursor:pointer;position:relative;transition:.15s}
+.fnode b{display:block;font-size:13px}
+.fnode:hover{border-color:var(--acc)}
+.fnode.on{border-color:var(--acc);background:var(--accL);box-shadow:0 0 0 2px var(--accL)}
+.farrow{align-self:center;color:var(--mut);font-size:16px}
+.svgbox{background:#fff;border:1px solid var(--line);border-radius:10px;overflow-x:auto}
+.svgbox svg{display:block}
+.small{font-size:13px;color:var(--mut)}
+.legend{display:flex;flex-wrap:wrap;gap:10px;font-size:12.5px;color:var(--mut);margin-top:8px}
+.legend .sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+.footer{padding:30px 0 50px;color:var(--mut);font-size:13.5px}
+a{color:var(--acc)}
+.bar{height:14px;border-radius:7px;display:inline-block;vertical-align:middle}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.tab{background:#fff;border:1px solid var(--line);border-radius:8px;padding:5px 14px;font-size:13.5px;cursor:pointer}
+.tab.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.ngbar{background:#ccfbf1;border-radius:4px;height:12px;display:inline-block;vertical-align:middle;margin-right:6px}
+.statcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:14px 0}
+.statcards .sc{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#fff;font-size:13.5px}
+.statcards .sc b{display:block;font-size:20px;color:var(--acc);margin-bottom:2px}
+.medal{background:#dcfce7;color:#15803d;font-weight:700}
+@media (max-width:860px){.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="sub">交互式算法详解 · 长错误读段组装系列 ②</div>
+    <h1>Assembly of Long Error-Prone Reads Using Repeat Graphs</h1>
+    <div class="meta">Mikhail Kolmogorov, Jeffrey Yuan, Yu Lin, Pavel A. Pevzner · 2019(Nat. Biotechnol.)· <b>Flye 组装器</b></div>
+    <div class="badges">
+      <span class="badge">重复图 repeat graph</span><span class="badge">disjointigs</span><span class="badge">bridged / unbridged repeats</span><span class="badge">Edmonds 最大权匹配</span><span class="badge">快 ~10×</span>
+    </div>
+    <div class="tldr">
+      <div class="card"><b>① 反直觉策略</b>别的组装器拼命保证拼接正确;Flye 故意先用随机游走生成「错误百出」的 disjointigs——只要全覆盖,从它们照样能重建<b>准确的重复图</b>。</div>
+      <div class="card"><b>② 核心机制</b>拼接 → 自比对点图 → 端点投影聚类粘合 → 重复图;再用读段解开桥接重复(最大权匹配)与非桥接重复(利用拷贝间变异)。</div>
+      <div class="card"><b>③ 结果</b>比 Canu/Falcon 快近一个数量级;人类基因组 NGA50 = 6.35 Mb(Canu 2.87)→ 加超长读长 11.8 Mb,近乎翻倍;还输出 SD 镶嵌结构。</div>
+    </div>
+  </div>
+</header>
+
+<nav id="topnav"><div class="wrap">
+  <a href="#f0">流水线九步</a><a href="#f1">disjointigs</a><a href="#f2">重复图构建</a><a href="#f2b">理论框架</a><a href="#f3">桥接重复</a><a href="#f4">非桥接重复</a><a href="#f5">SD 分析</a><a href="#f6">实验</a><a href="#f7">对比结论</a>
+</div></nav>
+
+<main class="wrap">
+
+<!-- ============ F0 流水线九步 ============ -->
+<section id="f0">
+  <h2>0 · 流水线九步总览<span class="figtag">原文 Fig. 1</span></h2>
+  <p class="lead">用一个从头到尾的运行例子走完 Flye 全流程。基因组含两个 ~99% 相同的重复拷贝 R1、R2(R2 比最长读段还长 → <b>unbridged</b>;R1 可被读段整个跨过 → <b>bridged</b>)。点「下一步」逐步推进;第 2 步有个分岔选择,你可以亲自体验「走错也没关系」。</p>
+  <div id="wf0">
+    <div class="fig">
+      <div class="ctrl" id="f0ctrl"></div>
+      <div class="svgbox" id="f0svg"></div>
+      <div class="stepcap" id="f0cap"></div>
+    </div>
+  </div>
+  <details><summary>为什么「错误的 disjointigs」反而能重建正确的重复图?</summary><div class="body">
+    <ul>
+      <li><b>DBG 类比</b>:从基因组在 de Bruijn 图中的任意路径集合出发构建 DBG,只要这些路径覆盖所有 k-mer,得到的图与原 DBG 完全相同——路径本身的「错误拼接」在粘合 k-mer 时自动被吸收。Flye 把这一性质推广到重复图:disjointigs 只是基因组 tour 的任意路径,把它们连成 concatenate 再做自比对,重复结构照样浮现。</li>
+      <li><b>前提</b>:disjointigs 满足 overhang 性质(每个分支点两侧至少伸出 minOverlap),且拼接间用分隔符隔开、比对不跨越分隔符——论文 Supplementary Note 9–10 给出该论证。</li>
+      <li><b>代价与收益</b>:省掉了 OLC/ABruijn 中最昂贵的「逐延伸候选做正确性校验」,换来快近一个数量级;错拼产生的假重复由读段覆盖度证据(第 6 步)甄别拆除。</li>
+    </ul>
+  </div></details>
+</section>
+
+<!-- ============ F1 disjointigs ============ -->
+<section id="f1">
+  <h2>1 · disjointigs:故意的「乱拼」<span class="figtag">原文 Fig. 1b–d + FlyeWalk</span></h2>
+  <p class="lead">ABruijn 每一步延伸都要精心挑选 most-consistent 读段并做正确性校验;Flye 的 FlyeWalk 只做一件事:从一条读段出发,<b>随机</b>跳到任何一条有足够长公共 jump-子路径(≥ minOverlap ≈ 读长 N90,约 3–5 kb)的重叠读段上。穿过重复时随机选边 → 必然产生错拼。但注意:错拼是<b>确定性的结构信息</b>——「这两个区域通过某个重复相连」这个事实本身被记录在拼接里。</p>
+  <div class="statcards">
+    <div class="sc"><b>跳过读段纠错</b>Canu/Falcon 先校正全部读段(最耗时的一步),Flye 直接用原始读段。</div>
+    <div class="sc"><b>跳过 contig 校验</b>disjointigs 不需要正确——生成速度 ≈ 读段一遍线性扫描。</div>
+    <div class="sc"><b>果蝇实测</b>Flye 140 小时 vs Canu 1100 小时;线虫 128 vs 780 分钟。</div>
+  </div>
+  <details><summary>minOverlap 为什么取读长 N90?</summary><div class="body">
+    <ul><li>重叠判定复用 ABruijn 论文的最长公共 jump-子路径机器;minOverlap 设为读长 N90(90% 读长总量由之贡献的分界)可保证重叠信号远强于随机共享,同时给重复图构建留出 overhang。</li><li>这也解释了为什么 Flye 不怕高错误率:jump-子路径允许锚点之间跳过垃圾锚点,对 ~10% 错误率鲁棒。</li></ul>
+  </div></details>
+</section>
+
+<!-- ============ F2 重复图构建 ============ -->
+<section id="f2">
+  <h2>2 · 重复图构建:点图 → 端点聚类 → 粘合<span class="figtag">原文 Fig. 2</span></h2>
+  <p class="lead">对 concatenate 做自比对得到点图(dot-plot):每个重复实例是一条对角线。老 A-Bruijn 框架把<b>整条对角线</b>的顶点两两粘合(→ punctilious 图),在 SMS 错误读段下产生大量碎分支,需要难以调参的 bubble/whirl 消除。Flye 的简化:<b>只取对角线端点</b>,把端点投影到主对角线并做单链接聚类,只粘合每簇的断点。以论文的镶嵌重复例子 X·A·B·Y·A·B·Z·B·U(A 出现 2 次、B 出现 3 次)演示:</p>
+  <div id="wf2">
+    <div class="fig">
+      <div class="ctrl" id="f2ctrl"></div>
+      <div class="grid2">
+        <div class="svgbox" id="f2svg"></div>
+        <div class="panel" id="f2panel"></div>
+      </div>
+      <div class="stepcap" id="f2cap"></div>
+      <div class="legend">
+        <span><span class="sw" style="background:#eab308"></span>簇 1(黄)</span>
+        <span><span class="sw" style="background:#7c3aed"></span>簇 2(紫)</span>
+        <span><span class="sw" style="background:#2563eb"></span>簇 3(蓝)</span>
+        <span>悬停对角线/端点查看坐标</span>
+      </div>
+    </div>
+  </div>
+  <details><summary class="mono">算法细节:投影、聚类与断点段</summary><div class="body">
+    <ul>
+      <li>自比对 = 所有 ≥ minOverlap 的自身局部比对(非重叠 alignment-paths);主对角线是平凡自比对。</li>
+      <li>每个端点 (x, y) 产生两个投影 x、y 到主对角线;<b>两个端点「接近」= 任一投影对距离 ≤ d</b>(含横纵投影互相靠近的情形)。单链接聚类把端点分簇。</li>
+      <li>每簇的投影集合合并为断点段(BreakpointSegments);<b>等价</b>的段(某比对点的两个投影分别落入两段)把各自中点粘合——粘合的是「段中点」而非全部断点,数量从 O(m²) 降到 O(m)。</li>
+      <li>最后粘合平行边(起点终点相同且序列互相比对的边)。对角线内部的点若投影落入断点集,需先把比对断开(扩展 Breakpoints 使其 valid,SI6)。</li>
+      <li><b>d 的作用</b>:d=0 只粘合投影恰好相等的端点;d 增大会把不同断点并成一团 → 过度简化。拉到 d≥1 看看图如何塌缩——这就是论文强调「SMS 下没有 sweet spot、必须换端点法」的原因。</li>
+    </ul>
+  </div></details>
+</section>
+
+<!-- ============ F2b 理论框架 ============ -->
+<section id="f2b">
+  <h2>3 · 理论框架:punctilious 重复图<span class="figtag">原文 Fig. 5 + 重复刻画问题</span></h2>
+  <p class="lead">Flye 还给了一个数学框架——<b>重复刻画问题</b>:给定基因组点图 Plot,反求图 G 和 tour T 使得 Plot = Plot<sub>T</sub>(G)(即「每个自比对的两个片段对应 G 中两条相同的路径」)。经典解法:punctilious 图(把 tour 中等价位置全部粘合)→ 收缩短边 → 重复图。下面用论文 Fig. 5 的 13 步 tour 演示这个理论版本。</p>
+  <div id="wf2b">
+    <div class="fig">
+      <div class="ctrl" id="f2bctrl"></div>
+      <div class="grid2">
+        <div class="svgbox" id="f2bsvg"></div>
+        <div class="panel" id="f2bpanel"></div>
+      </div>
+      <div class="stepcap" id="f2bcap"></div>
+    </div>
+  </div>
+  <details><summary>与实现的差异</summary><div class="body">
+    <ul>
+      <li>punctilious 图假设比对端点完全协调(同一重复的 m 个拷贝给出整齐的 (x,y) 起止点),真实 SMS 比对从不如此——每个重复产生 O(m²) 条不协调的 pairwise 对角线,粘合出大量碎分支。</li>
+      <li>Flye 的近似重复图(上一节)直接从端点聚类构造,等价于「先把断点整理好再做 punctilious」,绕开图简化;理论版本的价值是说清「正确的重复刻画长什么样」(alignment-compatible tour)。</li>
+      <li>边长 = 压缩的非分支路径上的原边数;倍数(multiplicity)= 基因组 tour 经过该边的次数;倍数 1 = 唯一边,其余 = 重复边。</li>
+    </ul>
+  </div></details>
+</section>
+
+<!-- ============ F3 bridged ============ -->
+<section id="f3">
+  <h2>4 · 解桥接重复:转移图 + 最大权匹配<span class="figtag">原文 Methods</span></h2>
+  <p class="lead">把重复边收缩后得到<b>压缩图</b>:能跨过重复的读段直接给出「入边 → 出边」的过渡计数。把每个入边尾/出边头当作二分图顶点、过渡计数当边权,跑 <b>Edmonds 最大权匹配</b>,配对即为该重复拷贝的进出连接(长倒置重复会让图非二分,所以需要一般图匹配而非匈牙利算法)。匹配后用一条桥接读段填补两段之间的空隙。</p>
+  <div id="wf3">
+    <div class="fig">
+      <div class="ctrl" id="f3ctrl"></div>
+      <div class="grid2">
+        <div class="svgbox" id="f3svg"></div>
+        <div class="panel" id="f3panel"></div>
+      </div>
+      <div class="stepcap" id="f3cap"></div>
+    </div>
+  </div>
+  <details><summary>置信度检查(SI13)</summary><div class="body">
+    <ul><li>每个匹配边还要过一道置信度检查(过渡计数是否显著高于其他选项)。第二个数据集里两种匹配打平(54 vs 54)——Flye <b>保守地不解</b>,把决定权留给后续数据(更长读段/其他文库),避免错解。</li>
+    <li>解桥接重复后,剩下的重复边要么是「无读段跨过」的 unbridged(下一节),要么形成总长超过读长的重复边路径。</li></ul>
+  </div></details>
+</section>
+
+<!-- ============ F4 unbridged ============ -->
+<section id="f4">
+  <h2>5 · 解非桥接重复:用拷贝间的变异分身<span class="figtag">原文 Fig. 3 右</span></h2>
+  <p class="lead">没有任何读段能跨过的重复(unbridged)是 SMS 组装的最后堡垒。Flye 的思路:两个拷贝从不是 100% 相同——<b>用进入/离开边的读段把拷贝「分身」出来</b>:从 IN1 进入的读段分给拷贝 1、从 IN2 进入的分给拷贝 2;分别建共识,「向前推进」构造分歧前缀,「向后推进」构造分歧后缀;中段剩余部分靠已被分身的跨中读段的出口投票决定连接。下图用论文的真实数字(E. coli EC9964,REP 22.0 kb)演示,拖动 δ(拷贝歧异度)观察成功与失败的条件。</p>
+  <div id="wf4">
+    <div class="fig">
+      <div class="ctrl" id="f4ctrl"></div>
+      <div class="svgbox" id="f4svg"></div>
+      <div class="stepcap" id="f4cap"></div>
+    </div>
+  </div>
+  <details><summary>能力边界(论文自述)</summary><div class="body">
+    <ul>
+      <li>当前版本只处理<b>倍数 2</b> 的 unbridged repeats(单倍体与二倍体基因组);更高倍数留待后续。</li>
+      <li>经验上成功要求拷贝歧异 ≳ 3%:歧异太低时,可用的区分变异太少,读段无法可靠分身(模拟中 ~1% 歧异的重复基本失败;人类基因组 <1% 歧异的 &gt;15 kb 长重复只有 53 个)。</li>
+      <li>算法迭代:分配读段 → 建两份共识 → 按变异把更多读段分身 → 共识变长 → 直到没有新读段可分配;同时要判定入边与出边的正确配对(cis/trans)。</li>
+    </ul>
+  </div></details>
+</section>
+
+<!-- ============ F5 SD ============ -->
+<section id="f5">
+  <h2>6 · 应用:重复图揭示节段重复(SD)的镶嵌结构<span class="figtag">原文 Fig. 4</span></h2>
+  <p class="lead">组装图是断点图的特例,天然适合分析节段重复。去掉唯一边后,重复边连通分量就是 SD:复杂度 = 分量内边数,长度 = 边长总和。悬停下面这个人类基因组(HUMAN 数据)的镶嵌 SD 分量(复杂度 7、总长 25.7 kb;对齐到 chr7 一段 31 kb 与 chr20 两段 30/46 kb)。</p>
+  <div id="wf5">
+    <div class="fig">
+      <div class="ctrl" id="f5ctrl"></div>
+      <div class="grid2">
+        <div class="svgbox" id="f5svg"></div>
+        <div class="panel" id="f5panel"></div>
+      </div>
+      <div class="cap small">HUMAN 组装图(解重复前)中 &gt;5 kb 的重复边共 1,748 条、749 个分量;用标准 ONT 读段解掉大部分,再用 5× 超长读段(N50=100 kb)后仅剩 765 条边、107 个分量(73 镶嵌 + 34 简单)。5–50 kb 的 SD:688 个中标准读段解掉 545 个、超长再解 58 个;简单 SD 从 1,256 降到 143。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ F6 实验 ============ -->
+<section id="f6">
+  <h2>7 · 基准测试<span class="figtag">原文 Table 1 + SI1</span></h2>
+  <p class="lead">六个数据集对比 Canu、Falcon、HINGE、Miniasm(打磨后)、MaSuRCA。切换数据集、点表头排序;Flye 行高亮。</p>
+  <div id="wf6">
+    <div class="fig">
+      <div class="tabs" id="f6tabs"></div>
+      <div id="f6table"></div>
+      <div class="small" style="margin-top:6px">NG50/NGA50 单位 kb;QUAST 5.0;人类参考屏蔽了着丝粒区以便公平比较。Miniasm 输出经 ABruijn 打磨模块(Miniasm+ABruijn)后参与参考级评测。</div>
+    </div>
+    <div class="statcards">
+      <div class="sc"><b>128 分钟</b>线虫(100 Mb)总耗时,vs Canu 780 / Falcon 945 分钟</div>
+      <div class="sc"><b>140 vs 1100 小时</b>果蝇基因组:快 ≈8×(跳过读段纠错 + disjointigs 策略)</div>
+      <div class="sc"><b>NGA50 6.35 Mb</b>人类(ONT 30×+Illumina),Canu 2.87 / MaSuRCA 3.81;加 5× 超长读段后 11.8 Mb</div>
+      <div class="sc"><b>5 个错误</b>酵母 PB 数据集最少错误(Canu 13);ONT 数据集 9 个(Canu 18)</div>
+      <div class="sc"><b>8 / 5 / 8</b>21 个细菌数据集解非桥接重复后的图状态:完整 / 半完整 / 缠结(之前 4/1/16)</div>
+      <div class="sc"><b>96.4%</b>人类基因组组装覆盖比(Canu 95.4、MaSuRCA 95.1),且拼出了着丝粒低复杂度区</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ F7 对比 ============ -->
+<section id="f7">
+  <h2>8 · ABruijn → Flye:一脉相承的两次跃迁</h2>
+  <p class="lead">Flye 复用了 ABruijn 的 jump-子路径比对机器,但用「先乱拼、再建图」替换了「精心延伸」,并用显式重复图接管了 ABruijn 用启发式硬扛的重复问题。</p>
+  <table class="data" style="width:100%">
+    <tr><th style="width:22%">维度</th><th>ABruijn (2016)</th><th>Flye (2019)</th></tr>
+    <tr><td>重叠判定</td><td>最长公共 jump-子路径 DP(共享)</td><td>同款机器,用于 disjointigs 自比对与读段-图比对</td></tr>
+    <tr><td>重复处理</td><td>看不见图结构 → 支持图聚类等启发式</td><td>显式重复图:bridged 用最大权匹配,unbridged 用拷贝变异</td></tr>
+    <tr><td>初始产物</td><td>正确 contigs(慢,需逐候选校验)</td><td>错误 disjointigs(快,错拼由图构建吸收)</td></tr>
+    <tr><td>输出</td><td>contigs + 打磨</td><td>contigs + <b>重复图</b>(解 SD、辅助 finishing)</td></tr>
+    <tr><td>速度</td><td>ECOLI 8 min 组装(小基因组友好)</td><td>大基因组近一个数量级加速(果蝇 140 vs 1100 h)</td></tr>
+  </table>
+  <div style="margin-top:14px">
+    <b>论文自述的局限与展望</b>
+    <ul>
+      <li>unbridged 解析限于倍数 2、歧异 ≳3%;人类基因组多数 SD 是<b>镶嵌式</b>的,当前算法解不掉——若能扩展到镶嵌 SD 与 ~1% 歧异的重复,NGA50 有望再提升一个数量级,减少对 Hi-C/光学图谱的依赖。</li>
+      <li>ONT 组装碱基错误率仍高(Flye 1.2%),Illumina+Pilon 打磨后 0.30%;作者认为重复图层面的打磨是更优路径。</li>
+    </ul>
+  </div>
+  <p style="margin-top:12px">上一篇交互详解:<a href="abruijn.html"><b>← ABruijn · Assembly of long error-prone reads using de Bruijn graphs</b></a>(本目录下 abruijn.html)</p>
+</section>
+
+</main>
+
+<footer class="footer"><div class="wrap">
+  交互式解读材料(非官方)· 数据与算法描述取自论文正文与 Methods;运行例子按论文 Fig. 1/Fig. 3 构造,标注「示意」处为便于演示的简化。
+  本地文件:<a href="Assembly-of-Long-Error-Prone-Reads-Using-Repeat-Graphs .pdf">Flye 原文 PDF</a> ·
+  <a href="lin-et-al-2016-assembly-of-long-error-prone-reads-using-de-bruijn-graphs.pdf">ABruijn 原文 PDF</a> ·
+  <a href="abruijn.html">ABruijn 交互详解</a>
+</div></footer>
+
+<script>
+/* ================= 通用工具 ================= */
+const NS='http://www.w3.org/2000/svg';
+function S(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e;}
+function D(cls,parent,html){const e=document.createElement('div');if(cls)e.className=cls;if(html!==undefined)e.innerHTML=html;if(parent)parent.appendChild(e);return e;}
+function BTN(label,parent,fn,cls){const b=document.createElement('button');b.className='btn'+(cls?' '+cls:'');b.textContent=label;b.onclick=fn;parent.appendChild(b);return b;}
+function SLD(parent,label,min,max,val,step,fmt){const w=D('sld',parent);const lab=D('',w);lab.innerHTML=label+' <b></b>';const inp=document.createElement('input');inp.type='range';inp.min=min;inp.max=max;inp.step=step||1;inp.value=val;w.appendChild(inp);const bold=lab.querySelector('b');const upd=()=>{bold.textContent=fmt?fmt(+inp.value):inp.value;};inp.addEventListener('input',upd);upd();return inp;}
+const COL={blue:'#2563eb',red:'#dc2626',green:'#16a34a',purple:'#7c3aed',teal:'#0d9488',orange:'#ea580c',gray:'#9ca3af',ink:'#1f2937',amber:'#d97706',cyan:'#0891b2'};
+const PAL=['#0d9488','#7c3aed','#eab308','#2563eb','#ea580c','#16a34a','#dc2626','#0891b2','#be185d','#65a30d'];
+
+/* 滚动导航高亮 */
+(function(){
+  const links=[...document.querySelectorAll('#topnav a')];
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+en.target.id));}});},{rootMargin:'-30% 0px -60% 0px'});
+  document.querySelectorAll('main section').forEach(s=>io.observe(s));
+})();
+
+/* ============ 运行例子基因组 ============ */
+const SEGS=[
+  {name:'A',c:'#f59e0b',s:0,e:1500},
+  {name:'R1',c:'#7c3aed',s:1500,e:5500,copy:1},
+  {name:'B',c:'#3b82f6',s:5500,e:7500},
+  {name:'R2',c:'#14b8a6',s:7500,e:16500,copy:1},
+  {name:'C',c:'#f97316',s:16500,e:19000},
+  {name:'R1',c:'#a78bfa',s:19000,e:23000,copy:2},
+  {name:'D',c:'#22c55e',s:23000,e:25000},
+  {name:'R2',c:'#2dd4bf',s:25000,e:34000,copy:2},
+  {name:'E',c:'#a855f7',s:34000,e:35000}];
+const GTOT=35000;
+const READS=[[0,6500,'r0'],[0,8000,'r1'],[3000,11000,'r2'],[8000,16000,'r3'],[13000,21000,'r4'],[18000,26000,'r5'],[18500,25500,'r5b'],[23000,31000,'r6'],[28000,35000,'r7'],[25500,33000,'rb1']];
+/* disjointigs: wrong = [r1,r2,rb1,r7] & [r4,r5,r5b,r6] */
+function djBlocks(variant){
+  if(variant==='wrong'){
+    return[
+      [{n:'A',c:'#f59e0b',l:1500},{n:'R1',c:'#7c3aed',l:4000},{n:'B',c:'#3b82f6',l:2000},{n:'R2a',c:'#14b8a6',l:8500},{n:'R2b',c:'#2dd4bf',l:7500,mis:1},{n:'E',c:'#a855f7',l:1000}],
+      [{n:'R2a′',c:'#14b8a6',l:3500},{n:'C',c:'#f97316',l:2500},{n:'R1′',c:'#a78bfa',l:4000},{n:'D',c:'#22c55e',l:2000},{n:'R2b′',c:'#2dd4bf',l:6000}]];
+  }
+  return[
+    [{n:'A',c:'#f59e0b',l:1500},{n:'R1',c:'#7c3aed',l:4000},{n:'B',c:'#3b82f6',l:2000},{n:'R2',c:'#14b8a6',l:9000},{n:'C',c:'#f97316',l:2500},{n:'R1',c:'#a78bfa',l:4000},{n:'D',c:'#22c55e',l:2000},{n:'R2',c:'#2dd4bf',l:9000},{n:'E',c:'#a855f7',l:1000}],
+    []];
+}
+
+/* ================= F0 流水线九步 ================= */
+(function(){
+  const CTRL=document.getElementById('f0ctrl'),BOX=document.getElementById('f0svg'),CAP=document.getElementById('f0cap');
+  const W=880,H=560,X0=30,XW=820;
+  const xg=bp=>X0+bp/GTOT*XW;
+  let stage=0,walkChoice='wrong';
+  const STAGES=[
+    {t:'真实基因组',cap:'<b>真实基因组(算法不可见,仅作对照)</b>:A·R1·B·R2·C·R1·D·R2·E。R1 两拷贝 99% 相同且能被 8 kb 读段整个跨过(bridged);R2 两拷贝长 9 kb &gt; 最长读段 8 kb(unbridged)。小圆点示意拷贝间 ~1% 的变异。'},
+    {t:'读段采样',cap:'<b>读段</b>:10 条长读段(≤8 kb),覆盖率示意。注意:没有任何读段同时覆盖 R2 的两端侧翼(B…C 或 D…E)——R2 是 unbridged;而 r0/r1 跨过 R1 整段(A→B),r5/r5b 跨过 R1 的第二拷贝(C→D)——R1 是 bridged。'},
+    {t:'FlyeWalk 生成 disjointigs',cap:'<b>FlyeWalk</b>:从 r1 出发随机延伸。走到 r2 末端(位于 R2 内部)时,候选有两条:r3(继续留在 R2 内,r 意义上重叠 3 kb)和 rb1(通过 R2 的<b>共享序列</b>跳到另一个拷贝!). 随机选择 → 大概率产生错拼。选一种走法试试:'},
+    {t:'拼接 concatenate',cap:'<b>拼接</b>:所有 disjointigs 用分隔符连成一条长串。错拼的地方(✂)让某些片段出现两次——但拼接<b>覆盖了整个基因组</b>,这就够了。'},
+    {t:'自比对 → 点图',cap:'<b>点图</b>:concatenate 的自比对。紫线 = R1 的两处出现;青线 = R2 的 4 处出现两两配对(错拼使拷贝出现 4 次!)。每个重复实例 = 一条对角线。'},
+    {t:'粘合 → 初始重复图',cap:'<b>构建重复图</b>:端点投影聚类 → 粘合。R1 成为倍数 2 的重复边;R2 的 4 个片段互相粘成一团;A/B/C/D/E 暂时也只是普通边。此时图尚不可信——错拼会制造假重复。'},
+    {t:'读段回比对 + 覆盖度甄别',cap:'<b>覆盖度甄别</b>:把读段比对回图。真重复的边覆盖 ≈ 2× 平均单拷贝覆盖;A/B/C/D/E 只有 1× → 判为唯一边;R2 的多重重叠遍历被整理为「2 个拷贝」的真重复。错拼的痕迹被读段证据拆穿。'},
+    {t:'解 bridged repeat(R1)',cap:'<b>解 R1(桥接重复)</b>:压缩图上数过渡读段:(A→B) 与 (C→D) 各 2 条,(A→D)/(C→B) 0 条。最大权匹配(本例平凡)把 R1 拆成 R1a(A→B)与 R1b(C→D),用桥接读段填补间隙。'},
+    {t:'解 unbridged repeat(R2)',cap:'<b>解 R2(非桥接重复)</b>:从 B 进入的读段分给拷贝 1、从 D 进入的分给拷贝 2 → 各自建共识、向前/向后推进 → 中段靠变异分身的读段投票:B→R2a→C,D→R2b→E(详见第 5 节交互)。'},
+    {t:'最终基因组路径',cap:'<b>完成</b>:重复边全部解开后,图退化为一条线性路径——与顶部真实基因组逐段一致 ✓。Flye 同时输出 contigs 与重复图(后者可用于 SD 分析与辅助 finishing)。'}
+  ];
+  function segBar(y,h,scale,total,blocks,offX){
+    let x=offX||X0;
+    blocks.forEach(b=>{const w=b.l*scale;
+      S('rect',{x,y,width:w,height:h,fill:b.c,stroke:'#fff','stroke-width':1,opacity:.92},svgL);
+      if(w>34)S('text',{x:x+w/2,y:y+h/2+4,'font-size':10.5,fill:'#fff','text-anchor':'middle','font-weight':700,'pointer-events':'none'},svgL).textContent=b.n;
+      if(b.mis)S('text',{x:x+w,y:y-4,'font-size':14,fill:COL.red,'text-anchor':'middle','font-weight':700},svgL).textContent='✂';
+      x+=w;});
+    return x;}
+  let svgL=null;
+  function draw(){
+    BOX.innerHTML='';const svg=S('svg',{width:W,height:H},BOX);svgL=svg;
+    const defs=S('defs',{},svg);
+    const mk=S('marker',{id:'ar0',markerWidth:8,markerHeight:8,refX:7,refY:4,orient:'auto'},defs);
+    S('path',{d:'M0,0 L8,4 L0,8 z',fill:'#64748b'},mk);
+    // ---- genome layer (stages 0-3 & 9) ----
+    if(stage<=3||stage===9){
+      S('text',{x:X0,y:20,'font-size':12,fill:'#6b7280','font-weight':700},svg).textContent=stage===9?'真实基因组(对照)':'真实基因组 '+ (GTOT/1000)+' kb(算法不可见)';
+      SEGS.forEach(sg=>{S('rect',{x:xg(sg.s),y:30,width:xg(sg.e)-xg(sg.s),height:24,fill:sg.c,rx:2},svg);
+        if(xg(sg.e)-xg(sg.s)>30)S('text',{x:(xg(sg.s)+xg(sg.e))/2,y:46,'font-size':10.5,fill:'#fff','text-anchor':'middle','font-weight':700,'pointer-events':'none'},svg).textContent=sg.name+(sg.copy===2?'′':'');
+        if(sg.name[0]==='R'&&sg.copy===2){const dotN=6;for(let i=1;i<dotN;i++){S('circle',{cx:xg(sg.s)+(xg(sg.e)-xg(sg.s))*i/dotN,cy:34,r:1.8,fill:'#ffffff',opacity:.9},svg);S('circle',{cx:xg(SEGS[SEGS.indexOf(sg)-4].s)+(xg(SEGS[SEGS.indexOf(sg)-4].e)-xg(SEGS[SEGS.indexOf(sg)-4].s))*i/dotN,cy:34,r:1.8,fill:'#ffffff',opacity:.9},svg);}}
+        S('title',{},svg.lastChild).textContent=sg.name+(sg.copy?'(拷贝 '+sg.copy+' ~99% 相同)':'')+' '+(sg.e-sg.s)/1000+' kb';});
+    }
+    // ---- reads ----
+    if(stage>=1&&stage<=2){
+      S('text',{x:X0,y:76,'font-size':12,fill:'#6b7280','font-weight':700},svg).textContent='读段(≤8 kb)';
+      READS.forEach((r,i)=>{const y=84+i*8.5;
+        S('rect',{x:xg(r[0]),y,width:xg(r[1])-xg(r[0]),height:6,rx:3,fill:r[2]==='rb1'?'#fca5a5':'#cbd5e1'},svg);
+        S('title',{},svg.lastChild).textContent=r[2]+': ['+r[0]+','+r[1]+']';});
+      if(stage===2){S('text',{x:xg(25500)+8,y:84+9*8.5,'font-size':10,fill:COL.red},svg).textContent='rb1 在 R2 内部,与 R2 内的读段共享序列 → 可被「跳」到';}
+    }
+    // ---- disjointigs ----
+    if(stage>=2&&stage<=3){
+      const bks=djBlocks(walkChoice);const tot=bks[0].reduce((s,b)=>s+b.l,0)+bks[1].reduce((s,b)=>s+b.l,0);
+      const scale=(XW-40)/Math.max(tot,1);
+      S('text',{x:X0,y:186,'font-size':12,fill:'#6b7280','font-weight':700},svg).textContent='disjointigs(允许错拼 ✂)';
+      let yy=192;
+      bks.forEach((blocks,di)=>{if(!blocks.length){S('text',{x:X0,y:yy+14,'font-size':11,fill:'#9ca3af'},svg).textContent='(正确走法下,一条 disjointig 已覆盖全基因组,其余读段用尽)';return;}
+        const endX=segBar(yy,22,scale,tot,blocks);
+        S('text',{x:endX+8,y:yy+15,'font-size':11,fill:'#6b7280'},svg).textContent='DJ'+(di+1);
+        yy+=34;});
+    }
+    // ---- concatenate ----
+    if(stage>=3&&stage<=4){
+      const bks=djBlocks(walkChoice);const tot=bks[0].reduce((s,b)=>s+b.l,0)+bks[1].reduce((s,b)=>s+b.l,0);
+      const scale=(XW-40)/Math.max(tot,1);const offD1=0,gap=120,offD2=bks[0].reduce((s,b)=>s+b.l,0)*scale+gap;
+      S('text',{x:X0,y:252,'font-size':12,fill:'#6b7280','font-weight':700},svg).textContent='concatenate(总长 '+Math.round(tot/1000)+' kb + 分隔符)';
+      segBar(258,20,scale,tot,bks[0]);
+      S('rect',{x:X0+bks[0].reduce((s,b)=>s+b.l,0)*scale,y:258,width:gap,height:20,fill:'#334155',rx:3},svg);
+      S('text',{x:X0+bks[0].reduce((s,b)=>s+b.l,0)*scale+gap/2,y:272,'font-size':10,fill:'#fff','text-anchor':'middle'},svg).textContent='#';
+      if(bks[1].length)segBar(258,20,scale,tot,bks[1],offD2);
+    }
+    // ---- repeat plot ----
+    if(stage===4){
+      const bks=djBlocks(walkChoice);const tot=bks[0].reduce((s,b)=>s+b.l,0)+bks[1].reduce((s,b)=>s+b.l,0);
+      const px0=X0,py0=270,pxw=430,pyh=250;const sc=pxw/tot;
+      const X=bp=>px0+bp*sc,Y=bp=>py0+pyh-bp*(pyh/tot);
+      S('text',{x:px0,y:py0-6,'font-size':12,fill:'#6b7280','font-weight':700},svg).textContent='点图(自比对;主对角线为平凡自比对)';
+      S('line',{x1:X(0),y1:Y(0),x2:X(tot),y2:Y(tot),stroke:'#d1d5db','stroke-dasharray':'3,3'},svg);
+      const diag=(ax,ay,bx,by,col,wid,lab)=>{const g=0.08;
+        const p1=[ax+(bx-ax)*g, ay+(by-ay)*g], p2=[bx-(bx-ax)*g, by-(by-ay)*g];
+        S('line',{x1:X(p1[0]),y1:Y(p1[1]),x2:X(p2[0]),y2:Y(p2[1]),stroke:col,'stroke-width':wid,opacity:.9,'stroke-linecap':'round',cursor:'pointer'},svg);
+        S('circle',{cx:X(p1[0]),cy:Y(p1[1]),r:2.8,fill:col},svg);S('circle',{cx:X(p2[0]),cy:Y(p2[1]),r:2.8,fill:col},svg);
+        const t=S('title',{},svg.lastChild);t.textContent=lab;};
+      if(walkChoice==='wrong'){
+        diag(1500,30500,5500,34500,COL.purple,3.5,'R1:位置 [1500,5500] ↔ [30500,34500]');
+        const occ=[[7500,16000],[16000,23500],[24600,28100],[36600,42600]];
+        for(let i=0;i<4;i++)for(let j=i+1;j<4;j++)diag(occ[i][0],occ[j][0],occ[i][1],occ[j][1],'#14b8a6',2,'R2 片段 '+(i+1)+' ↔ 片段 '+(j+1));
+        S('text',{x:px0+10,y:py0+pyh-8,'font-size':11,fill:COL.teal},svg).textContent('R2 出现 4 次 → 6 条对角线(错拼的直接证据);紫色 = R1 的两处出现');
+      }else{
+        diag(1500,19000,5500,23000,COL.purple,3.5,'R1 两处出现');
+        diag(7500,25000,16500,34000,'#14b8a6',2.5,'R2 两处出现');
+        S('text',{x:px0+10,y:py0+pyh-8,'font-size':11,fill:COL.teal},svg).textContent('正确走法:R1、R2 各出现 2 次 → 各一条对角线');
+      }
+    }
+    // ---- graph ----
+    if(stage>=5){
+      const yB=470;
+      const vx=i=>40+92*i;
+      S('text',{x:X0,y:296,'font-size':12,fill:'#6b7280','font-weight':700},svg).textContent=
+        (stage===9?'最终重复图(重复全部解开 → 线性路径)':stage===7||stage===8?'重复图(+ 放大镜:当前正在解的重复)':'初始重复图');
+      if(stage<9){
+        // shared-repeat topology
+        const P={s:[70,yB],u1:[160,yB],u2:[260,yB],w1:[370,yB],w2:[500,yB],t:[640,yB]};
+        const edge=(a,b,col,arc,lab,wid)=>{const p1=P[a],p2=P[b];const mx=(p1[0]+p2[0])/2;
+          S('path',{d:'M'+p1[0]+','+p1[1]+(arc?(' Q'+mx+','+(p1[1]+arc)+' '+p2[0]+','+p2[1]):' L'+p2[0]+','+p2[1]),fill:'none',stroke:col,'stroke-width':wid||10,'stroke-linecap':'round',opacity:.9},svg);
+          if(lab)S('text',{x:mx,y:p1[1]+(arc?arc+4:16),'font-size':10.5,fill:'#374151','text-anchor':'middle','font-weight':700},svg).textContent=lab;};
+        edge('s','u1','#f59e0b',0,'A');
+        edge('u1','u2','#7c3aed',-38,stage>=7?'R1 ✓已解 (×2)':'R1 (×2)',stage>=7?12:12);
+        edge('u2','w1','#3b82f6',-26,'B');
+        edge('u2','w1','#22c55e',30,'D');
+        edge('w1','w2','#14b8a6',-38,stage>=6?(stage>=8?'R2 ✓已解 (×2)':'R2 (×2, 由4片段整理)'):'R2 缠结 (4片段)',stage>=8?12:stage>=6?11:8);
+        edge('w2','u1','#f97316',46,'C');
+        edge('w2','t','#a855f7',0,'E');
+        for(const k in P)S('circle',{cx:P[k][0],cy:P[k][1],r:6,fill:'#334155'},svg);
+        if(stage===6){S('text',{x:70,y:yB-86,'font-size':11,fill:COL.ok},svg).textContent='A/B/C/D/E: 读段覆盖 ≈1× → 唯一边 ✓';}
+        if(stage>=7){ // inset: R1 resolved
+          const iy=330;
+          S('rect',{x:40,y:iy,width:400,height:56,rx:8,fill:'#f0fdfa',stroke:'#99f6e4'},svg);
+          S('text',{x:52,y:iy+18,'font-size':11,fill:COL.teal,'font-weight':700},svg).textContent='R1 解开:最大权匹配 → R1a(A→B)+R1b(C→D)';
+          const nodes=[[80,iy+40],[170,iy+40],[280,iy+40],[400,iy+40]];
+          S('line',{x1:nodes[0][0],y1:nodes[0][1],x2:nodes[1][0],y2:nodes[1][1],stroke:'#7c3aed','stroke-width':8,'stroke-linecap':'round'},svg);
+          S('line',{x1:nodes[2][0],y1:nodes[2][1],x2:nodes[3][0],y2:nodes[3][1],stroke:'#a78bfa','stroke-width':8,'stroke-linecap':'round'},svg);
+          S('text',{x:125,y:iy+22,'font-size':10,fill:'#5b21b6','text-anchor':'middle','font-weight':700},svg).textContent='R1a';
+          S('text',{x:340,y:iy+22,'font-size':10,fill:'#5b21b6','text-anchor':'middle','font-weight':700},svg).textContent='R1b';
+        }
+        if(stage>=8){ // inset: R2 resolved
+          const iy2=330;
+          S('rect',{x:460,y:iy2,width:400,height:56,rx:8,fill:'#f0fdfa',stroke:'#99f6e4'},svg);
+          S('text',{x:472,y:iy2+18,'font-size':11,fill:COL.teal,'font-weight':700},svg).textContent='R2 解开:变异分身 → R2a(B→C)+R2b(D→E)';
+          const nodes=[[500,iy2+40],[590,iy2+40],[700,iy2+40],[820,iy2+40]];
+          S('line',{x1:nodes[0][0],y1:nodes[0][1],x2:nodes[1][0],y2:nodes[1][1],stroke:'#14b8a6','stroke-width':8,'stroke-linecap':'round'},svg);
+          S('line',{x1:nodes[2][0],y1:nodes[2][1],x2:nodes[3][0],y2:nodes[3][1],stroke:'#2dd4bf','stroke-width':8,'stroke-linecap':'round'},svg);
+          S('text',{x:545,y:iy2+22,'font-size':10,fill:'#0f766e','text-anchor':'middle','font-weight':700},svg).textContent='R2a';
+          S('text',{x:760,y:iy2+22,'font-size':10,fill:'#0f766e','text-anchor':'middle','font-weight':700},svg).textContent='R2b';
+        }
+      }else{
+        // final linear path
+        const names=['','A','R1a','B','R2a','C','R1b','D','R2b','E'];
+        const cols=['#334155','#f59e0b','#7c3aed','#3b82f6','#14b8a6','#f97316','#a78bfa','#22c55e','#2dd4bf','#a855f7'];
+        for(let i=0;i<9;i++){const x1=40+92*i,x2=40+92*(i+1);
+          S('line',{x1,y1:yB,x2,y2:yB,stroke:cols[i+1],'stroke-width':12,'stroke-linecap':'round'},svg);
+          S('text',{x:(x1+x2)/2,y:yB-10,'font-size':10.5,fill:cols[i+1],'text-anchor':'middle','font-weight':700},svg).textContent=names[i+1];
+          S('title',{},svg.lastChild).textContent=names[i+1];}
+        for(let i=0;i<=9;i++)S('circle',{cx:40+92*i,cy:yB,r:5,fill:'#334155'},svg);
+      }
+    }
+    CAP.innerHTML=STAGES[stage].cap;
+    if(stage===2){
+      const br=D('',null);CAP.appendChild(br);
+      BTN('选 rb1 → 跳去另一拷贝(错拼)',br,()=>{walkChoice='wrong';draw();},'mini');
+      BTN('选 r3 → 留在本拷贝(正确)',br,()=>{walkChoice='right';draw();},'mini ghost');
+      br.style.cssText='display:flex;gap:8px;margin-top:6px';
+    }
+  }
+  CTRL.innerHTML='';
+  BTN('⟲ 重置',CTRL,()=>{stage=0;draw();},'mini ghost');
+  BTN('◀ 上一步',CTRL,()=>{if(stage>0){stage--;draw();}},'mini');
+  BTN('下一步 ▶',CTRL,()=>{if(stage<9){stage++;draw();}},'mini');
+  BTN('▶ 自动播放',CTRL,()=>{stage=0;draw();const t=setInterval(()=>{if(stage>=9){clearInterval(t);return;}stage++;draw();},1800);},'mini ghost');
+  draw();
+})();
+
+/* ================= F2 近似重复图(XABYABZBU) ================= */
+(function(){
+  const CTRL=document.getElementById('f2ctrl'),BOX=document.getElementById('f2svg'),PANEL=document.getElementById('f2panel'),CAPD=document.getElementById('f2cap');
+  const UNITS=['X','A','B','Y','A','B','Z','B','U']; // boundaries 0..9
+  const ALIGN=[{x:[2,4],y:[5,7]},{x:[3,4],y:[8,9]},{x:[6,7],y:[8,9]}];
+  const CCL={Y:'#eab308',P:'#7c3aed',B:'#2563eb'};
+  const W=760,H=400,PL=56,PT=36,PS=34; // cell size
+  let step=0,slD;
+  const endpoints=[];
+  ALIGN.forEach((al,i)=>{endpoints.push({al:i,type:'s',p:[al.x[0],al.y[0]]});endpoints.push({al:i,type:'e',p:[al.x[1],al.y[1]]});});
+  function clusters(d){
+    const n=endpoints.length,parent=[...Array(n).keys()];
+    const find=i=>parent[i]===i?i:(parent[i]=find(parent[i]));
+    const close=(a,b)=>{const A=endpoints[a].p,B2=endpoints[b].p;
+      return Math.abs(A[0]-B2[0])<=d||Math.abs(A[0]-B2[1])<=d||Math.abs(A[1]-B2[0])<=d||Math.abs(A[1]-B2[1])<=d;};
+    for(let i=0;i<n;i++)for(let j=i+1;j<n;j++)if(close(i,j)){const a=find(i),b=find(j);if(a!==b)parent[a]=b;}
+    const map={};endpoints.forEach((e,i)=>{const r=find(i);(map[r]=map[r]||[]).push(i);});
+    return Object.values(map);}
+  function cellX(b){return PL+b*PS;} function cellY(b){return PT+(9-b)*PS;}
+  function draw(){
+    BOX.innerHTML='';const svg=S('svg',{width:W,height:H},BOX);
+    const d=+slD.value,cls=clusters(d);
+    const colorOf={};cls.forEach((c,ci)=>c.forEach(i=>colorOf[i]=PAL[ci%PAL.length]));
+    // grid
+    for(let b=0;b<=9;b++){
+      S('text',{x:cellX(b)+PS/2,y:PT-6,'font-size':10,fill:'#9ca3af','text-anchor':'middle'},svg).textContent=b;
+      S('text',{x:PL-8,y:cellY(b)+PS/2+4,'font-size':10,fill:'#9ca3af','text-anchor':'end'},svg).textContent=b;}
+    for(let i=0;i<9;i++)for(let j=0;j<9;j++)S('rect',{x:cellX(i),y:cellY(j),width:PS,height:PS,fill:(i+j)%2?'#f8fafc':'#f1f5f9'},svg);
+    // unit labels on diagonal cells
+    UNITS.forEach((u,i)=>S('text',{x:cellX(i)+PS/2,y:cellY(i)+PS/2+4,'font-size':11,fill:'#cbd5e1','text-anchor':'middle','font-weight':700},svg).textContent=u);
+    S('text',{x:PL+9*PS/2,y:H-6,'font-size':11,fill:'#6b7280','text-anchor':'middle'},svg).textContent='concatenate 位置(段单位)→';
+    S('text',{x:14,y:PT+9*PS/2,'font-size':11,fill:'#6b7280','text-anchor':'middle',transform:'rotate(-90 14 '+(PT+9*PS/2)+')'},svg).textContent='位置(段单位)';
+    // main diagonal
+    if(step>=1)S('line',{x1:cellX(0),y1:cellY(0),x2:cellX(9),y2:cellY(9),stroke:'#d1d5db','stroke-dasharray':'4,3','stroke-width':1.5},svg);
+    // alignments
+    if(step>=1)ALIGN.forEach((al,ai)=>{const x1=cellX(al.x[0]),y1=cellY(al.y[1]),x2=cellX(al.x[1]),y2=cellY(al.y[0]);
+      S('line',{x1,y1,x2,y2,stroke:step>=2?(colorOf[ai*2]||'#94a3b8'):'#0d9488','stroke-width':4,'stroke-linecap':'round',opacity:.8,cursor:'pointer'},svg);
+      const t=S('title',{},svg.lastChild);t.textContent='自比对 '+ai+': 段 ['+al.x[0]+','+al.x[1]+') ↔ ['+al.y[0]+','+al.y[1]+') ('+UNITS.slice(al.x[0],al.x[1]).join('')+' ↔ '+UNITS.slice(al.y[0],al.y[1]).join('')+')';});
+    // endpoints + projections
+    if(step>=2)endpoints.forEach((e,i)=>{const c=colorOf[i]||'#94a3b8';
+      const ex=cellX(e.p[0]),ey=cellY(e.p[1]);
+      S('circle',{cx:ex+(e.type==='s'?-8:8),cy:ey+(e.type==='s'?8:-8),r:6.5,fill:c,stroke:'#fff','stroke-width':1.5,cursor:'pointer'},svg);
+      const t=S('title',{},svg.lastChild);t.textContent='端点 ('+e.p[0]+','+e.p[1]+')'+(e.type==='s'?' 起':' 止');
+      if(step>=2){S('circle',{cx:ex,cy:PT+1.5,r:3.5,fill:c},svg);S('circle',{cx:PL+1.5,cy:ey,r:3.5,fill:c},svg);}});
+    // cluster halos
+    if(step>=3){cls.forEach(c=>{if(c.length<2)return;const xs=c.map(i=>cellX(endpoints[i].p[0])),ys=c.map(i=>cellY(endpoints[i].p[1]));
+      const cx=xs.reduce((a,b)=>a+b)/c.length,cy=ys.reduce((a,b)=>a+b)/c.length;
+      const rad=Math.min(Math.max(...xs.map((x,k)=>Math.hypot(x-cx,ys[k]-cy)))+16,74);
+      const cc=colorOf[c[0]]||'#94a3b8';
+      S('circle',{cx,cy,r:rad,fill:cc,opacity:.10},svg);
+      S('circle',{cx,cy,r:rad,fill:'none',stroke:cc,'stroke-dasharray':'4,3','stroke-width':1.2,opacity:.6},svg);});}
+    // ---- graph (right side or below) ----
+    if(step>=4){
+      const gx=PL+9*PS+40;
+      if(gx+250<W){
+        S('text',{x:gx,y:PT+8,'font-size':12,fill:'#374151','font-weight':700},svg).textContent=d>0.5?'过度简化的图!':'近似重复图';
+        // vertices: b1(0) bA{2,5} bB{3,6,8} bC{4,7,9} bEnd(10)
+        const pos=d>0.5?
+          {b1:[gx+30,PT+60],big:[gx+170,PT+60],bEnd:[gx+310,PT+60]}:
+          {b1:[gx+30,PT+50],bA:[gx+120,PT+40],bB:[gx+240,PT+40],bC:[gx+180,PT+130],bEnd:[gx+300,PT+170]};
+        const drawV=(k,lab,cx,cy,col)=>{S('circle',{cx,cy,r:17,fill:col,stroke:'#fff','stroke-width':2,cursor:'pointer'},svg);
+          S('text',{x:cx,y:cy+4,'font-size':10,'font-weight':700,fill:'#fff','text-anchor':'middle','pointer-events':'none'},svg).textContent=lab;
+          const t=S('title',{},svg.lastChild);t.textContent=lab+(lab.length>1?'(由多个断点粘合)':'');};
+        const E=[[ 'b1','bA','#eab308','X ×1'],['bA','bB','#7c3aed','A ×2'],['bB','bC','#2563eb','B ×3'],['bC','bA','#eab308','Y ×1'],['bC','bB','#7c3aed','Z ×1'],['bC','bEnd','#65a30d','U ×1']];
+        if(d>0.5){
+          S('line',{x1:pos.b1[0]+16,y1:pos.b1[1],x2:pos.big[0]-16,y2:pos.big[1],stroke:'#94a3b8','stroke-width':3},svg);
+          S('line',{x1:pos.big[0]+16,y1:pos.big[1],x2:pos.bEnd[0]-16,y2:pos.bEnd[1],stroke:'#94a3b8','stroke-width':3},svg);
+          S('circle',{cx:pos.big[0],cy:pos.big[1],r:20,fill:'#94a3b8'},svg);
+          S('text',{x:pos.big[0],y:pos.big[1]+5,'font-size':11,'font-weight':700,fill:'#fff','text-anchor':'middle'},svg).textContent='全部粘合';
+          S('text',{x:gx+30,y:PT+110,'font-size':11,fill:COL.red},svg).textContent='重复结构全部丢失!';
+        }else{
+          E.forEach(e=>{const p1=pos[e[0]],p2=pos[e[1]];const mx=(p1[0]+p2[0])/2,my=(p1[1]+p2[1])/2;
+            const dx=p2[0]-p1[0],dy=p2[1]-p1[1],L=Math.hypot(dx,dy)||1,off=Math.min(18,L*.2);
+            S('path',{d:'M'+p1[0]+','+p1[1]+' Q'+(mx-dy/L*off)+','+(my+dx/L*off)+' '+p2[0]+','+p2[1],fill:'none',stroke:e[2],'stroke-width':3.5,opacity:.85,'marker-end':'url(#ar2)'},svg);
+            S('text',{x:mx-dy/L*off,y:my+dx/L*off-4,'font-size':9.5,fill:e[2],'font-weight':700,'text-anchor':'middle'},svg).textContent=e[3];});
+          drawV('b1','1',pos.b1[0],pos.b1[1],'#334155');
+          drawV('bA','A',pos.bA[0],pos.bA[1],'#7c3aed');
+          drawV('bB','B',pos.bB[0],pos.bB[1],'#2563eb');
+          drawV('bC','C',pos.bC[0],pos.bC[1],'#eab308');
+          drawV('bEnd','末',pos.bEnd[0],pos.bEnd[1],'#334155');
+          const mk2=S('marker',{id:'ar2',markerWidth:7,markerHeight:7,refX:6,refY:3.5,orient:'auto'},svg);
+          S('path',{d:'M0,0 L7,3.5 L0,7 z',fill:'#64748b'},mk2);
+          S('text',{x:gx+30,y:PT+205,'font-size':10.5,fill:'#6b7280'},svg).textContent='基因组 tour: X→A→B→Y→A→B→Z→B→U';
+        }
+      }
+    }
+    PANEL.innerHTML='<b>输入:concatenate = X·A·B·Y·A·B·Z·B·U</b>'
+      +'<div class="small" style="margin:6px 0">A 出现 2 次、B 出现 3 次 → 3 条自比对(含不同长度的重叠)→ <b>镶嵌重复</b>。</div>'
+      +'<div class="kv"><span>自比对条数</span><b>3 + 主对角线</b></div>'
+      +'<div class="kv"><span>端点数</span><b>6</b></div>'
+      +'<div class="kv"><span>投影断点数</span><b>8 {2..9}</b></div>'
+      +'<div class="kv"><span>聚类阈值 d</span><b>'+d+'</b></div>'
+      +'<div class="kv"><span>端点簇数</span><b>'+cls.length+(d>0.5?'(过并!)':'')+'</b></div>'
+      +(d>0.5?'<div style="margin-top:8px;color:#b45309;font-size:12.5px">d 太大 → 所有端点并成一簇 → 全部粘合 → 图塌缩。SMS 数据下没有可靠的 sweet spot,这正是 Flye 改用端点法并保守选 d 的原因。</div>':'<div style="margin-top:8px;font-size:12.5px;color:#0f766e">d=0 恰好把「右端点」归为一簇(蓝):它们两两共享某个投影(4 / 7 / 9)。</div>');
+  }
+  const caps=[
+    '<b>第 1 步 · 点图</b>:主对角线 = 平凡自比对;三条彩色对角线 = 三个重复实例的两两比对(B 单独与两处 AB 配对)。',
+    '<b>第 2 步 · 端点与投影</b>:每条对角线有两个端点,各自向主对角线投影(横纵各一次)→ 8 个断点。',
+    '<b>第 3 步 · 聚类</b>:投影互相接近(≤ d)的端点并簇——蓝色簇的三个右端点两两共享投影;每簇的投影集合 → 断点段 → 粘合中点。',
+    '<b>第 4 步 · 粘合出图</b>:断点 2~5、3~6~8、4~7~9 分别粘合 → A 变成 ×2 的重复边、B 变成 ×3 —— 镶嵌重复结构一目了然。'];
+  function cap(){CAPD.innerHTML=caps[step-1]||'';}
+  CTRL.innerHTML='';
+  BTN('⟲ 重置',CTRL,()=>{step=1;draw();cap();},'mini ghost');
+  [1,2,3,4].forEach(st=>BTN('步骤 '+st,CTRL,()=>{step=st;draw();cap();},'mini'));
+  slD=SLD(CTRL,'聚类阈值 d',0,2,0,1);
+  slD.addEventListener('input',()=>{if(step<2)step=2;draw();});
+  step=1;draw();cap();
+})();
+
+/* ================= F2b punctilious ================= */
+(function(){
+  const CTRL=document.getElementById('f2bctrl'),BOX=document.getElementById('f2bsvg'),PANEL=document.getElementById('f2bpanel'),CAPD=document.getElementById('f2bcap');
+  const TOUR=['A','B','C','D','B','C','D','E','A','B','C','D','E'];
+  const DOTS={3:1,7:1}; // dots after position index (0-based): after 4th(3) and after 8th(7)
+  const PTS=[[0,8],[1,4],[1,9],[4,9],[2,5],[2,10],[5,10],[3,6],[3,11],[6,11],[7,12],[11,12]];
+  const W=640,H=590,PL=44,PT=40,PS=20;
+  let step=0;
+  const CL={A:'#7c3aed',B:'#2563eb',C:'#eab308',D:'#ea580c',E:'#16a34a'};
+  const cellX=b=>PL+b*PS, cellY=b=>PT+(13-b)*PS;
+  function draw(){
+    BOX.innerHTML='';const svg=S('svg',{width:W,height:H},BOX);
+    const mk=S('marker',{id:'ar3',markerWidth:7,markerHeight:7,refX:6,refY:3.5,orient:'auto'},svg);
+    S('path',{d:'M0,0 L7,3.5 L0,7 z',fill:'#64748b'},mk);
+    // plot
+    for(let i=0;i<=13;i++){S('text',{x:cellX(i)+PS/2,y:PT-6,'font-size':9,fill:'#9ca3af','text-anchor':'middle'},svg).textContent=i;
+      S('text',{x:PL-8,y:cellY(i)+PS/2+4,'font-size':9,fill:'#9ca3af','text-anchor':'end'},svg).textContent=i;
+      S('line',{x1:cellX(i),y1:PT,x2:cellX(i),y2:PT+13*PS,stroke:'#f1f5f9'},svg);
+      S('line',{x1:PL,y1:cellY(i),x2:PL+13*PS,y2:cellY(i),stroke:'#f1f5f9'},svg);}
+    S('line',{x1:cellX(0),y1:cellY(0),x2:cellX(13),y2:cellY(13),stroke:'#d1d5db','stroke-dasharray':'3,3'},svg);
+    if(step>=1)PTS.forEach(p=>{S('circle',{cx:cellX(p[0])+PS/2,cy:cellY(p[1])+PS/2,r:5,fill:CL[TOUR[p[0]]],cursor:'pointer'},svg);
+      S('title',{},svg.lastChild).textContent='('+p[0]+','+p[1]+')  顶点 '+TOUR[p[0]]+' 出现两次';});
+    // tour strip
+    const ty=PT+13*PS+26;
+    S('text',{x:PL,y:ty+18,'font-size':11,fill:'#374151','font-weight':700},svg).textContent='tour T:';
+    let tx=PL+56;
+    TOUR.forEach((v,i)=>{S('circle',{cx:tx+12,cy:ty+14,r:12,fill:CL[v],opacity:step>=2&&false?1:.85},svg);
+      S('text',{x:tx+12,y:ty+18,'font-size':10,'font-weight':700,fill:'#fff','text-anchor':'middle','pointer-events':'none'},svg).textContent=v;
+      S('text',{x:tx+12,y:ty+36,'font-size':8.5,fill:'#9ca3af','text-anchor':'middle'},svg).textContent=i+1;
+      if(DOTS[i]){S('text',{x:tx+31,y:ty+18,'font-size':11,fill:'#cbd5e1','font-weight':700},svg).textContent='⋯';tx+=20;}
+      if(i<12){S('line',{x1:tx+24,y1:ty+14,x2:tx+36,y2:ty+14,stroke:'#cbd5e1','marker-end':'url(#ar3)'},svg);}
+      tx+=24;});
+    // graph
+    if(step>=2){
+      const gy=PT+13*PS+118;
+      const pos=step>=3?
+        {AB:[130,gy-10],C:[380,gy-10],DE:[255,gy+90]}:
+        {A:[110,gy],B:[230,gy-40],C:[350,gy-40],D:[470,gy],E:[400,gy+60]};
+      const labels=step>=3?{AB:'AB',C:'C',DE:'DE'}:{A:'A',B:'B',C:'C',D:'D',E:'E'};
+      const vcol2=step>=3?{AB:CL.A,C:CL.C,DE:CL.D}:{A:CL.A,B:CL.B,C:CL.C,D:CL.D,E:CL.E};
+      const edges=step>=3?
+        [['AB','C','#2563eb','×3'],['C','DE','#ea580c','×3'],['DE','AB','#eab308','×2']]:
+        [['A','B','#7c3aed','×2'],['B','C','#2563eb','×3'],['C','D','#ea580c','×3'],['D','B','#eab308','×1 (长2)'],['D','E','#16a34a','×2'],['E','A','#eab308','×1 (长2)']];
+      edges.forEach(e=>{const p1=pos[e[0]],p2=pos[e[1]];const mx=(p1[0]+p2[0])/2,my=(p1[1]+p2[1])/2;
+        const dx=p2[0]-p1[0],dy=p2[1]-p1[1],L=Math.hypot(dx,dy)||1,off=Math.min(24,L*.22);
+        S('path',{d:'M'+p1[0]+','+p1[1]+' Q'+(mx-dy/L*off)+','+(my+dx/L*off)+' '+p2[0]+','+p2[1],fill:'none',stroke:e[2],'stroke-width':4,opacity:.85,'marker-end':'url(#ar3)'},svg);
+        S('text',{x:mx-dy/L*off,y:my+dx/L*off-5,'font-size':10,fill:e[2],'font-weight':700,'text-anchor':'middle'},svg).textContent=e[3];});
+      for(const k in pos){const p=pos[k];S('circle',{cx:p[0],cy:p[1],r:16,fill:vcol2[k],stroke:'#fff','stroke-width':2},svg);
+        S('text',{x:p[0],y:p[1]+4,'font-size':10.5,'font-weight':700,fill:'#fff','text-anchor':'middle','pointer-events':'none'},svg).textContent=labels[k];}
+      if(step>=3)S('text',{x:110,y:gy+128,'font-size':10.5,fill:'#6b7280'},svg).textContent='收缩短边 (A,B) 与 (D,E) 后:干净的循环重复结构';
+    }
+    PANEL.innerHTML='<b>tour T = A B C D ⋯ B C D E ⋯ A B C D E</b>'
+      +'<div class="small" style="margin:6px 0">灰色 ⋯ 是 tour 中的其他顶点(使边 (B,D)、(E,A) 长度为 2)。</div>'
+      +'<div class="kv"><span>等价点对 (i,j)</span><b>'+PTS.length+'</b></div>'
+      +'<div class="kv"><span>粘合组</span><b>A{1,9} B{2,5,10} C{3,6,11} D{4,7,12} E{8,13}</b></div>'
+      +'<div class="kv"><span>punctilious 边</span><b>6 种(12 次遍历)</b></div>'
+      +(step>=3?'<div class="kv"><span>收缩短边后</span><b>AB→C ×3 / C→DE ×3 / DE→AB ×2</b></div>':'');
+  }
+  const caps=[
+    '<b>第 1 步 · tour</b>:tour T 依次访问 A→B→C→D→⋯→E;i、j 等价 ⟺ 对应同一顶点(灰色 ⋯ 是 tour 中的其他顶点,使部分边长度 &gt;1)。',
+    '<b>第 2 步 · repeat plot</b>:所有等价对 (i,j) 构成点图 Plot<sub>T</sub>(G) — 12 个点,按顶点着色。悬停查看坐标。',
+    '<b>第 3 步 · punctilious 图</b>:把等价位置粘合({1,9}→A、{2,5,10}→B 等),压缩非分支路径为带长度的边。理论上的「正确重复刻画」(alignment-compatible tour)。',
+    '<b>第 4 步 · 收缩短边</b>:长度 ≤ d 的短边收起(粘合端点)→ 得到最终重复图:AB→C ×3、C→DE ×3、DE→AB ×2。'];
+  function cap(){CAPD.innerHTML=caps[step]||'';}
+  CTRL.innerHTML='';
+  ['① tour','② 点图','③ punctilious','④ 收缩'].forEach((lab,st)=>BTN(lab,CTRL,()=>{step=st;draw();cap();},'mini'));
+  step=0;draw();cap();
+})();
+
+/* ================= F3 bridged ================= */
+(function(){
+  const CTRL=document.getElementById('f3ctrl'),BOX=document.getElementById('f3svg'),PANEL=document.getElementById('f3panel'),CAPD=document.getElementById('f3cap');
+  const DS={
+    clean:{name:'数据集 1:信号清晰',t:[45,41,2,3],note:'(IN1→OUT1)=45,(IN2→OUT2)=41,交叉过渡极少 → 匹配无歧义。'},
+    ambig:{name:'数据集 2:信号含混',t:[30,24,28,26],note:'直连过渡(30+24)与交叉过渡(28+26)打平(54 vs 54)→ 置信度检查不过 → 保守不解。'}};
+  let ds='clean',phase=0;
+  const W=640,H=480;
+  function draw(){
+    const D0=DS[ds],t=D0.t;
+    BOX.innerHTML='';const svg=S('svg',{width:W,height:H},BOX);
+    const mk=S('marker',{id:'ar4b',markerWidth:7,markerHeight:7,refX:6,refY:3.5,orient:'auto'},svg);
+    S('path',{d:'M0,0 L7,3.5 L0,7 z',fill:'#64748b'},mk);
+    // condensed graph
+    S('text',{x:20,y:24,'font-size':12,'font-weight':700,fill:'#374151'},svg).textContent='压缩图(重复边已收缩,桥接读段给出过渡计数)';
+    const N={I1:[80,90],I2:[80,220],O1:[360,90],O2:[360,220]};
+    const lbl={I1:'IN1 (入边1)',I2:'IN2 (入边2)',O1:'OUT1 (出边1)',O2:'OUT2 (出边2)'};
+    for(const k in N){S('circle',{cx:N[k][0],cy:N[k][1],r:14,fill:'#334155'},svg);
+      S('text',{x:N[k][0],y:N[k][1]-22,'font-size':11,fill:'#374151','text-anchor':'middle','font-weight':600},svg).textContent=lbl[k];}
+    const arcs=[[N.I1,N.O1,t[0],'#0d9488'],[N.I2,N.O2,t[1],'#7c3aed'],[N.I1,N.O2,t[2],'#f59e0b'],[N.I2,N.O1,t[3],'#ef4444']];
+    arcs.forEach((a,i)=>{const p1=a[0],p2=a[1];
+      const off=(i<2?-1:1)*(i%2===0?70:46);
+      S('path',{d:'M'+(p1[0]+14)+','+p1[1]+' C'+(p1[0]+110)+','+(p1[1]+off)+' '+(p2[0]-110)+','+(p2[1]+off)+' '+(p2[0]-14)+','+p2[1],fill:'none',stroke:a[3],'stroke-width':Math.max(2,Math.min(9,a[2]/7)),opacity:.8,'marker-end':'url(#ar4b)'},svg);
+      S('text',{x:(p1[0]+p2[0])/2,y:p1[1]+off*0.62,'font-size':12,'font-weight':700,fill:a[3],'text-anchor':'middle'},svg).textContent=a[2]+' 条过渡';});
+    S('text',{x:220,y:292,'font-size':11,fill:'#6b7280','text-anchor':'middle'},svg).textContent='弧宽 ∝ 过渡读段数';
+    // transition graph inset
+    const iy=306;
+    S('rect',{x:380,y:iy-8,width:250,height:110,rx:8,fill:'#f8fafc',stroke:'#e2e8f0'},svg);
+    S('text',{x:392,y:iy+8,'font-size':11,'font-weight':700,fill:'#374151'},svg).textContent='转移图(二分)+ 匹配';
+    const L1=[[410,iy+36],[410,iy+80]],L2=[[580,iy+36],[580,iy+80]];
+    S('text',{x:L1[0][0],y:L1[0][1]-14,'font-size':9.5,fill:'#64748b','text-anchor':'middle'},svg).textContent='I1ᵗ';
+    S('text',{x:L1[1][0],y:L1[1][1]-14,'font-size':9.5,fill:'#64748b','text-anchor':'middle'},svg).textContent='I2ᵗ';
+    S('text',{x:L2[0][0],y:L2[0][1]-14,'font-size':9.5,fill:'#64748b','text-anchor':'middle'},svg).textContent='O1ʰ';
+    S('text',{x:L2[1][0],y:L2[1][1]-14,'font-size':9.5,fill:'#64748b','text-anchor':'middle'},svg).textContent='O2ʰ';
+    const w2=[[t[0],'#0d9488'],[t[2],'#f59e0b'],[t[3],'#ef4444'],[t[1],'#7c3aed']];
+    let wi=0;
+    for(let a=0;a<2;a++)for(let b=0;b<2;b++){S('line',{x1:L1[a][0]+8,y1:L1[a][1],x2:L2[b][0]-8,y2:L2[b][1],stroke:w2[wi][1],'stroke-width':Math.max(1.5,w2[wi][0]/9)},svg);
+      S('text',{x:(L1[a][0]+L2[b][0])/2,y:(L1[a][1]+L2[b][1])/2-4,'font-size':9.5,fill:'#374151','text-anchor':'middle'},svg).textContent=w2[wi][0];wi++;}
+    if(phase>=1){const M1=t[0]+t[1],M2=t[2]+t[3];
+      // matching highlight: M1 = I1-O1 & I2-O2 (lines wi index 0 and 3); M2 = wi 1 and 2
+      const pick=M1>=M2?[0,3]:[1,2];wi=0;
+      for(let a=0;a<2;a++)for(let b=0;b<2;b++){if(pick.includes(wi)){S('line',{x1:L1[a][0]+8,y1:L1[a][1],x2:L2[b][0]-8,y2:L2[b][1],stroke:'#16a34a','stroke-width':5,opacity:.9,'stroke-dasharray':'none'},svg);}wi++;}
+      S('text',{x:392,y:iy+96,'font-size':10.5,fill:COL.green,'font-weight':700},svg).textContent='最大权匹配 = '+Math.max(M1,M2)+'(另一组合计 '+Math.min(M1,M2)+')';
+    }
+    // untangled result
+    if(phase>=2){const M1=t[0]+t[1],M2=t[2]+t[3];
+      if(M1>M2){const ry=336;
+        S('rect',{x:20,y:ry,width:340,height:44,rx:8,fill:'#f0fdf4',stroke:'#86efac'},svg);
+        S('line',{x1:40,y1:ry+30,x2:150,y2:ry+30,stroke:'#0d9488','stroke-width':10,'stroke-linecap':'round'},svg);
+        S('text',{x:95,y:ry+22,'font-size':10,'font-weight':700,fill:'#0d9488','text-anchor':'middle'},svg).textContent='REP1';
+        S('line',{x1:200,y1:ry+30,x2:310,y2:ry+30,stroke:'#7c3aed','stroke-width':10,'stroke-linecap':'round'},svg);
+        S('text',{x:255,y:ry+22,'font-size':10,'font-weight':700,fill:'#7c3aed','text-anchor':'middle'},svg).textContent='REP2';
+        S('text',{x:40,y:ry+12,'font-size':10.5,fill:'#15803d'},svg).textContent='✓ 解开:REP1 连 IN1-OUT1,REP2 连 IN2-OUT2(间隙用桥接读段填补)';
+      }else{
+        S('rect',{x:20,y:336,width:440,height:40,rx:8,fill:'#fef2f2',stroke:'#fca5a5'},svg);
+        S('text',{x:36,y:354,'font-size':12,fill:COL.red,'font-weight':700},svg).textContent='✗ 两种匹配打平(54 vs 54)→ 置信度不足 → 保守不解';
+        S('text',{x:36,y:370,'font-size':11,fill:'#b91c1c'},svg).textContent='留待更长读段 / 其他文库数据,避免错解(原文 SI13 的置信度检查)';
+      }
+    }
+    PANEL.innerHTML='<b>'+D0.name+'</b><div class="small" style="margin:6px 0">'+D0.note+'</div>'
+      +'<div class="kv"><span>匹配 M₁ = I1-O1 + I2-O2</span><b>'+(t[0]+t[1])+'</b></div>'
+      +'<div class="kv"><span>匹配 M₂ = I1-O2 + I2-O1</span><b>'+(t[2]+t[3])+'</b></div>'
+      +(phase>=1?'<div class="kv"><span>判定</span><b>'+((t[0]+t[1])>(t[2]+t[3])?'M₁ ✓':'平局 → 保守')+'</b></div>':'')
+      +'<div class="small" style="margin-top:8px">长倒置重复会让两股的压缩子图共享顶点 → 转移图非二分 → 需要 Edmonds 一般图最大权匹配,而非匈牙利算法。</div>';
+  }
+  const caps=[
+    '<b>第 1 步 · 过渡计数</b>:能跨过重复的读段(bridging reads)在压缩图上直接连接入边与出边。弧上的数字 = (入,出) 对的读段数。',
+    '<b>第 2 步 · 最大权匹配</b>:在转移图上跑 Edmonds 算法,绿色高亮胜出的完美匹配。',
+    '<b>第 3 步 · 解开</b>:重复边按匹配拆分;每个拆分用一条桥接读段填补间隙,得到完整的连接路径。'];
+  function cap(){CAPD.innerHTML=caps[phase]||'';}
+  CTRL.innerHTML='';
+  BTN('数据集 1',CTRL,()=>{ds='clean';phase=0;draw();cap();},'mini ghost');
+  BTN('数据集 2',CTRL,()=>{ds='ambig';phase=0;draw();cap();},'mini ghost');
+  [1,2].forEach(p=>BTN('第 '+p+' 步 ▶',CTRL,()=>{phase=p;draw();cap();},'mini'));
+  BTN('⟲ 重置',CTRL,()=>{phase=0;draw();cap();},'mini ghost');
+  draw();cap();
+})();
+
+/* ================= F4 unbridged ================= */
+(function(){
+  const CTRL=document.getElementById('f4ctrl'),BOX=document.getElementById('f4svg'),CAPD=document.getElementById('f4cap');
+  let step=0,slDelta;
+  const W=820,H=430;
+  const N1=93,N2=71,O1=75,O2=76,SPANS=31,CIS=[13,18];
+  const RLEN=22000,PF=8600,SF=6800,MID=RLEN-PF-SF;
+  function draw(){
+    const delta=+slDelta.value;
+    BOX.innerHTML='';const svg=S('svg',{width:W,height:H},BOX);
+    const x0=120,xw=560,xb=x0+xw;
+    const X=bp=>x0+bp/RLEN*xw;
+    // flanks
+    const drawBlk=(x,y,w,h,c,lab)=>{S('rect',{x,y,width:w,height:h,fill:c,rx:4},svg);if(lab&&w>30)S('text',{x:x+w/2,y:y+h/2+4,'font-size':10.5,fill:'#fff','text-anchor':'middle','font-weight':700,'pointer-events':'none'},svg).textContent=lab;};
+    drawBlk(30,60,50,26,'#64748b','IN1');drawBlk(30,96,50,26,'#64748b','IN2');
+    drawBlk(740,60,50,26,'#64748b','OUT1');drawBlk(740,96,50,26,'#64748b','OUT2');
+    S('text',{x:55,y:52,'font-size':11,fill:'#374151','text-anchor':'middle','font-weight':700},svg).textContent=N1+' 条读段';
+    S('text',{x:55,y:132,'font-size':11,fill:'#374151','text-anchor':'middle','font-weight':700},svg).textContent=N2+' 条读段';
+    S('text',{x:765,y:52,'font-size':11,fill:'#374151','text-anchor':'middle','font-weight':700},svg).textContent=O1+' 条';
+    S('text',{x:765,y:132,'font-size':11,fill:'#374151','text-anchor':'middle','font-weight':700},svg).textContent=O2+' 条';
+    // REP bar
+    drawBlk(x0,60,xw,62,'#99f6e4','');S('rect',{x:x0,y:60,width:xw,height:62,fill:'none',stroke:'#0d9488','stroke-width':2},svg);
+    S('text',{x:x0+10,y:78,'font-size':13,fill:'#0f766e','font-weight':800},svg).textContent='REP — 22.0 kb 的 unbridged 重复';
+    S('text',{x:x0+10,y:96,'font-size':10.5,fill:'#0f766e'},svg).textContent='383 条读段完全落在 REP 内部;无任何读段同时覆盖 IN 侧与 OUT 侧侧翼';
+    // scale ticks
+    [0,5000,10000,15000,20000].forEach(bp=>{S('line',{x1:X(bp),y1:122,x2:X(bp),y2:126,stroke:'#94a3b8'},svg);
+      S('text',{x:X(bp),y:136,'font-size':9,fill:'#9ca3af','text-anchor':'middle'},svg).textContent=(bp/1000)+'k';});
+    // step visuals
+    if(step>=1){ // assignment arrows
+      const arrows=[[55,73,x0,73,COL.purple],[55,109,x0,109,COL.orange]];
+      arrows.forEach(a=>S('path',{d:'M'+a[0]+','+a[1]+' C'+(a[0]+40)+','+a[1]+' '+(a[2]-40)+','+a[3]+' '+(a[2]+2)+','+a[3],fill:'none',stroke:a[4],'stroke-width':2.5,'marker-end':'url(#ar5c)'},svg));
+      S('text',{x:x0+14,y:56,'font-size':11,fill:COL.purple,'font-weight':700},svg).textContent='IN1 的 '+N1+' 条 → 拷贝 1';
+      S('text',{x:x0+14,y:176,'font-size':11,fill:COL.orange,'font-weight':700},svg).textContent='IN2 的 '+N2+' 条 → 拷贝 2';
+    }
+    if(step>=2){ // prefix bars with variants
+      const mk=(y,col,lab)=>{const w=X(PF)-x0;
+        S('rect',{x:x0,y,width:w,height:20,fill:col,opacity:.85,rx:3},svg);
+        S('text',{x:x0+w+8,y:y+14,'font-size':10.5,fill:'#374151'},svg).textContent=lab;
+        const nv=Math.round(PF*delta/100);const shown=Math.min(nv,120);
+        for(let i=0;i<shown;i++){const px=x0+((i*137+31)%Math.max(1,w));S('rect',{x:px,y:y+2,width:2.5,height:16,fill:'#111827',opacity:.55},svg);}
+        return w;};
+      mk(184,COL.purple,'拷贝 1 前缀 8.6 kb');
+      mk(216,COL.orange,'拷贝 2 前缀 8.6 kb');
+      S('text',{x:X(PF)-30,y:208,'font-size':10.5,fill:'#b45309','font-weight':700},svg).textContent='两前缀歧异 '+Math.max(2,delta*0.98).toFixed(1)+'%';
+    }
+    if(step>=3){ // suffix
+      const mk=(y,col)=>{const w=xb-X(RLEN-SF);
+        S('rect',{x:X(RLEN-SF),y,width:w,height:20,fill:col,opacity:.85,rx:3},svg);
+        const nv=Math.round(SF*delta/100);const shown=Math.min(nv,80);
+        for(let i=0;i<shown;i++){const px=X(RLEN-SF)+((i*211+57)%Math.max(1,w));S('rect',{x:px,y:y+2,width:2.5,height:16,fill:'#111827',opacity:.55},svg);}};
+      mk(248,COL.purple);mk(280,COL.orange);
+      S('text',{x:X(RLEN-SF/2),y:244,'font-size':10.5,fill:'#374151','text-anchor':'middle'},svg).textContent='向后推进:后缀 6.8 kb(用 OUT1/OUT2 的读段构造)';
+    }
+    if(step>=4){ // middle + spanning reads
+      const mw=xb-X(PF);
+      S('rect',{x:X(PF),y:60+0,width:mw,height:62,fill:'#fde68a',opacity:.5},svg);
+      S('text',{x:X(PF)+mw/2,y:56,'font-size':10.5,fill:'#b45309','font-weight':700,'text-anchor':'middle'},svg).textContent='中段剩余 6.6 kb — '+SPANS+' 条跨中读段(已在第 2 步按变异分身)';
+      const lanes=[184,COL.purple,'拷贝 1: '+CIS[0]+' 条跨中读段出口 → OUT1',216,COL.orange,'拷贝 2: '+CIS[1]+' 条跨中读段出口 → OUT2'];
+      S('rect',{x:X(PF),y:lanes[0],width:mw,height:20,fill:lanes[1],opacity:.5,rx:3},svg);
+      S('text',{x:X(PF)+mw+8,y:lanes[0]+14,'font-size':10,fill:'#374151'},svg).textContent=lanes[2];
+      S('rect',{x:X(PF),y:lanes[3],width:mw,height:20,fill:lanes[4],opacity:.5,rx:3},svg);
+      S('text',{x:X(PF)+mw+8,y:lanes[3]+14,'font-size':10,fill:'#374151'},svg).textContent=lanes[5];
+      // transition table
+      S('text',{x:x0,y:322,'font-size':11,fill:'#374151','font-weight':700},svg).textContent='跨中读段的出口投票:IN1→OUT1: '+CIS[0]+' / IN2→OUT2: '+CIS[1]+' / 交叉(IN1→OUT2、IN2→OUT1): 0 → cis 连接确认';
+    }
+    if(step>=5){ // final two copies
+      S('text',{x:x0,y:362,'font-size':12,fill:'#0f766e','font-weight':800},svg).textContent='✓ 完成:REP1 与 REP2 各自有了完整共识序列(终歧异 6.9%),图上重复边拆成两条';
+      S('rect',{x:x0,y:372,width:xw/2-8,height:18,fill:COL.purple,opacity:.8,rx:3},svg);
+      S('text',{x:x0+8,y:385,'font-size':10,fill:'#fff','font-weight':700},svg).textContent='REP1 = 前8.6k(拷贝1) + 中6.6k(票→OUT1) + 后6.8k';
+      S('rect',{x:xb-xw/2+8,y:372,width:xw/2-8,height:18,fill:COL.orange,opacity:.8,rx:3},svg);
+      S('text',{x:xb-xw/2+16,y:385,'font-size':10,fill:'#fff','font-weight':700},svg).textContent='REP2(连接 IN2…OUT2)';
+      const ok=delta>=3,part=delta>=2;
+      S('text',{x:x0,y:416,'font-size':12,fill:ok?'#15803d':'#b91c1c','font-weight':700},svg).textContent=
+        (ok?'δ='+delta+'% ≥ 3%:变异充足 → 分身成功 ✓':part?'δ='+delta+'%:变异勉强够 → 部分成功(部分读段分错)':'δ='+delta+'% < 2%:变异太少 → 两份共识几乎相同 → 分身失败 ✗');
+    }
+    const defs=S('defs',{},svg);const mk2=S('marker',{id:'ar5c',markerWidth:7,markerHeight:7,refX:6,refY:3.5,orient:'auto'},defs);
+    S('path',{d:'M0,0 L7,3.5 L0,7 z',fill:'#64748b'},mk2);
+  }
+  const caps=[
+    '<b>难题</b>:REP 的两个拷贝间没有任何读段桥接——IN1/IN2 应该分别连到 OUT1 还是 OUT2?仅凭拓扑无法判定(两种配对在图上都成立)。',
+    '<b>第 1 步 · 分身</b>:从 IN1 进入的 93 条读段分给拷贝 1,从 IN2 进入的 71 条分给拷贝 2。但落在 REP 中部的 383 条读段还无法分配。',
+    '<b>第 2 步 · 向前推进</b>:用两组读段分别构造共识,并逐渐「推进」进 REP 内部:8.6 kb 处两份前缀已分道扬镳(歧异 9.8%,黑色刻线 = 变异位点,密度 ∝ δ)。',
+    '<b>第 3 步 · 向后推进</b>:对称地用 OUT 侧读段构造 6.8 kb 的分歧后缀。',
+    '<b>第 4 步 · 中段投票</b>:中段只剩 6.6 kb,31 条「跨中读段」已在前两步按变异分身;它们的出口连接全部支持 cis(IN1-OUT1 ×13,IN2-OUT2 ×18),配对确定。',
+    '<b>完成</b>:两个拷贝各获得完整共识序列(歧异 6.9%),重复边拆分,图解开。当前版本限倍数 2;δ ≳ 3% 才可靠。'];
+  function cap(){const c=caps[Math.min(step,5)];CAPD.innerHTML=c+'<div style="margin-top:6px">拖动 δ 观察变异密度与成败判定。</div>';}
+  CTRL.innerHTML='';
+  BTN('⟲ 重置',CTRL,()=>{step=0;draw();cap();},'mini ghost');
+  for(let i=0;i<=5;i++)BTN(i===0?'难题':'步骤 '+i,CTRL,()=>{step=i;draw();cap();},'mini');
+  slDelta=SLD(CTRL,'拷贝歧异 δ',1,15,7,0.5,v=>v+'%');
+  slDelta.addEventListener('input',()=>{draw();});
+  draw();cap();
+})();
+
+/* ================= F5 SD ================= */
+(function(){
+  const CTRL=document.getElementById('f5ctrl'),BOX=document.getElementById('f5svg'),PANEL=document.getElementById('f5panel');
+  const EDGES=[
+    {n:'U-left',l:8,kb:'黑 · 唯一侧翼',c:'#334155',type:'u'},
+    {n:'C1',l:3.1,c:'#0d9488'},{n:'C2',l:4.2,c:'#7c3aed'},{n:'C3',l:5.0,c:'#eab308'},
+    {n:'C4',l:2.8,c:'#2563eb'},{n:'C5',l:3.6,c:'#ea580c'},{n:'C6',l:4.3,c:'#16a34a'},{n:'C7',l:2.7,c:'#dc2626'},
+    {n:'U-right',l:8,kb:'黑 · 唯一侧翼',c:'#334155',type:'u'}];
+  const W=640,H=300;
+  let showStats=false;
+  function draw(){
+    BOX.innerHTML='';const svg=S('svg',{width:W,height:H},BOX);
+    let x=30;const y=120;const scale=19; // px per kb
+    EDGES.forEach((e,i)=>{const w=e.type==='u'?44:e.l*scale;
+      S('rect',{x,y,width:w,height:26,fill:e.c,rx:5,cursor:'pointer'},svg);
+      const t=S('title',{},svg.lastChild);
+      t.textContent=e.n+(e.type!=='u'?' — '+e.l+' kb':' — 唯一边(锚定到基因组唯一序列)');
+      if(e.type!=='u'&&w>26)S('text',{x:x+w/2,y:y+17,'font-size':10.5,fill:'#fff','text-anchor':'middle','font-weight':700,'pointer-events':'none'},svg).textContent=e.n;
+      if(i<EDGES.length-1){S('line',{x1:x+w,y1:y+13,x2:x+w+8,y2:y+13,stroke:'#94a3b8','stroke-width':2,'marker-end':'url(#ar6c)'},svg);}
+      x+=w+8;});
+    S('text',{x:30,y:y-24,'font-size':12,fill:'#374151','font-weight':700},svg).textContent='重复边连通分量(镶嵌 SD,复杂度 7,总长 25.7 kb)';
+    S('text',{x:30,y:y+58,'font-size':11,fill:'#6b7280'},svg).textContent='对齐:chr7 一段 31 kb + chr20 两段 30 kb、46 kb —— 三处拷贝都由这 7 条彩色边拼成';
+    // tandem loop
+    const lx=540,ly=215;
+    S('circle',{cx:lx,cy:ly,r:30,fill:'none',stroke:'#dc2626','stroke-width':9,opacity:.85},svg);
+    S('text',{x:lx,y:ly+4,'font-size':10,fill:'#dc2626','font-weight':700,'text-anchor':'middle'},svg).textContent='C ×19';
+    S('title',{},svg.lastChild).textContent='环边 C:串联重复,单元 1.3 kb ×19,覆盖 473×(覆盖度暴露倍数)';
+    S('line',{x1:lx,y1:ly-30,x2:lx,y2:y+26,stroke:'#dc2626','stroke-width':2,'stroke-dasharray':'3,3'},svg);
+    S('text',{x:lx+40,y:ly,'font-size':10.5,fill:'#6b7280'},svg).textContent='← 覆盖 473× 的环边 = 串联重复';
+    if(showStats){
+      const bars=[['重复边 >5 kb',1748,765],['连通分量',749,107],['简单 SD',1256,143],['5–50kb SD 剩余',688,85]];
+      let by=250;
+      bars.forEach(b=>{S('text',{x:30,y:by,'font-size':10.5,fill:'#374151'},svg).textContent=b[0];
+        S('rect',{x:170,y:by-10,width:b[1]/1748*380,height:9,fill:'#99f6e4',rx:4},svg);
+        S('rect',{x:170,y:by+2,width:b[2]/1748*380,height:9,fill:'#0d9488',rx:4},svg);
+        S('text',{x:560,y:by,'font-size':10,fill:'#6b7280'},svg).textContent=b[1]+' → '+b[2];
+        by+=22;});
+      S('text',{x:170,y:by-16,'font-size':9.5,fill:'#6b7280'},svg).textContent='浅 = 解重复前 / 深 = 超长读段解重复后';
+    }
+    const defs=S('defs',{},svg);const mk=S('marker',{id:'ar6c',markerWidth:7,markerHeight:7,refX:6,refY:3.5,orient:'auto'},defs);
+    S('path',{d:'M0,0 L7,3.5 L0,7 z',fill:'#64748b'},mk);
+    PANEL.innerHTML='<b>这个分量怎么读</b>'
+      +'<div class="small" style="margin:6px 0">7 条彩色重复边构成一个连通分量 = 一个<b>镶嵌 SD</b>(复杂度 7 = 边数,长度 25.7 kb = 边长和)。它同时解释了基因组里三处的序列:chr7 ×1、chr20 ×2 —— 不同拷贝用不同的「彩色边组合」拼出来,这就是镶嵌结构。</div>'
+      +'<div class="kv"><span>分量数(解重复前)</span><b>749</b></div>'
+      +'<div class="kv"><span>镶嵌/简单(解后)</span><b>73 / 34</b></div>'
+      +'<div class="kv"><span> Flye 当前能否解镶嵌 SD?</span><b style="color:#dc2626">否(局限)</b></div>'
+      +'<div class="small" style="margin-top:8px">串联重复暴露为<b>环边</b>:环边覆盖 ÷ 单拷贝覆盖 ≈ 串联合数(473×/25× ≈ 19)。</div>';
+  }
+  CTRL.innerHTML='';
+  BTN('显示解重复前后统计 ▶',CTRL,()=>{showStats=!showStats;draw();},'mini ghost');
+  draw();
+})();
+
+/* ================= F6 benchmarks ================= */
+(function(){
+  const TABS=document.getElementById('f6tabs'),TB=document.getElementById('f6table');
+  const DATA={
+    'YEAST-PB':{rows:[
+      ['Flye',12.1,28,670,98.3,'99.95%',5,560],['Canu',12.4,33,708,99.5,'99.95%',13,603],
+      ['Falcon',12.1,42,562,97.5,'99.81%',27,562],['HINGE',12.2,45,440,91.9,'98.81%',19,361],
+      ['Miniasm+ABruijn',12.2,36,600,98.2,'99.93%',11,592]]},
+    'YEAST-ONT':{rows:[
+      ['Flye',12.1,28,810,98.7,'99.04%',9,660],['Canu',12.2,41,800,99.1,'98.96%',18,655],
+      ['Falcon',11.9,41,662,97.4,'98.81%',17,637],['HINGE',12.2,64,309,92.5,'97.94%',59,292],
+      ['Miniasm+ABruijn',11.6,24,723,98.8,'99.03%',12,723]]},
+    'WORM':{rows:[
+      ['Flye',103,85,3256,99.5,'99.93%',111,1893],['Canu',108,175,2954,99.7,'99.93%',190,1974],
+      ['Falcon',101,106,2291,98.7,'99.78%',118,1242],['HINGE',103,64,2710,98.0,'99.40%',174,1441],
+      ['Miniasm+ABruijn',108,178,2314,99.6,'99.93%',181,1437]]},
+    'HUMAN':{rows:[
+      ['Flye+Pilon',2776,1069,7886,96.4,'99.70%',879,6349],['Canu+Pilon',2730,2195,3209,95.4,'99.49%',1200,2870],
+      ['MaSuRCA',2768,1269,4670,95.1,'99.84%',1500,3812]]},
+    'HUMAN+':{rows:[
+      ['Flye+Pilon',2823,782,18181,97.0,'99.69%',1487,11800],['Canu+Pilon',2815,798,10410,96.8,'99.81%',1455,7007],
+      ['MaSuRCA',2876,1111,8425,97.5,'99.80%',2101,5581]]}};
+  const HEAD=['组装器','总长 Mb','#contigs','NG50','参考覆盖%','一致性%','错拼数','NGA50'];
+  let cur='YEAST-PB',sortCol=-1,sortDir=1;
+  function render(){
+    let h='<table class="data" style="width:100%"><tr>'+HEAD.map((hd,i)=>'<th data-i="'+i+'">'+hd+(sortCol===i?(sortDir>0?' ▲':' ▼'):'')+'</th>').join('')+'</tr>';
+    const rows=DATA[cur].rows.slice();
+    if(sortCol>=0){rows.sort((a,b)=>{const va=a[sortCol],vb=b[sortCol];
+      const na=typeof va==='number'?va:parseFloat(String(va).replace('%',''));
+      const nb=typeof vb==='number'?vb:parseFloat(String(vb).replace('%',''));
+      return (na-nb)*sortDir;});}
+    const maxNG=Math.max(...rows.map(r=>r[7]));
+    rows.forEach(r=>{const isF=r[0].indexOf('Flye')===0;
+      h+='<tr'+(isF?' class="flye"':'')+'><td style="text-align:left">'+r[0]+(isF?' ⭐':'')+'</td>';
+      for(let i=1;i<8;i++){let cell=typeof r[i]==='number'?r[i].toLocaleString():r[i];
+        if(i===7){const w=Math.round(r[i]/maxNG*90);cell='<span class="ngbar" style="width:'+w+'px;background:'+(isF?'#0d9488':'#99f6e4')+'"></span>'+r[i].toLocaleString();}
+        h+='<td>'+cell+'</td>';}
+      h+='</tr>';});
+    TB.innerHTML=h+'</table>';
+    TB.querySelectorAll('th').forEach(th=>th.onclick=()=>{const i=+th.dataset.i;if(i===0)return;
+      if(sortCol===i)sortDir*=-1;else{sortCol=i;sortDir=1;}render();});
+  }
+  for(const k in DATA){const b=D('tab'+(k===cur?' on':''),TABS,k);b.classList.add('tab');
+    b.onclick=()=>{cur=k;sortCol=-1;TABS.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));b.classList.add('on');render();};}
+  render();
+})();
+</script>
+</body>
+</html>

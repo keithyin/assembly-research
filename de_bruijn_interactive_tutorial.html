@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>De Bruijn 图与 A-Bruijn 图 · 交互式基因组组装教程</title>
+<style>
+  :root{
+    --bg:#f6f8fa; --card:#ffffff; --ink:#1f2328; --muted:#57606a;
+    --line:#e1e4e8; --accent:#2563eb; --ok:#1a7f37; --bad:#d9534f;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    line-height:1.75; font-size:15.5px;
+  }
+  header{
+    background:linear-gradient(135deg,#0b3d91 0%,#2563eb 60%,#7c3aed 100%);
+    color:#fff; padding:42px 20px 34px; text-align:center;
+  }
+  header h1{margin:0 0 10px; font-size:30px; letter-spacing:.5px}
+  header p{margin:4px auto; max-width:820px; opacity:.92; font-size:15px}
+  header .tag{display:inline-block; margin-top:12px; background:rgba(255,255,255,.15);
+    border:1px solid rgba(255,255,255,.35); border-radius:999px; padding:4px 14px; font-size:13px}
+  nav#toc{
+    position:fixed; top:90px; left:18px; width:190px; font-size:13.5px;
+    background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 8px;
+    box-shadow:0 1px 4px rgba(0,0,0,.05);
+  }
+  nav#toc .t{font-weight:700; padding:2px 10px 6px; color:var(--muted); font-size:12px; letter-spacing:1px}
+  nav#toc a{display:block; padding:5px 10px; color:var(--ink); text-decoration:none; border-radius:8px}
+  nav#toc a:hover{background:#eef2ff}
+  nav#toc a.active{background:#e0e9ff; color:#1d4ed8; font-weight:600}
+  main{max-width:900px; margin:0 auto; padding:26px 18px 60px}
+  @media (min-width:1180px){ main{margin-left:250px} }
+  @media (max-width:1179px){ nav#toc{display:none} }
+  section.card{
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:24px 26px; margin-bottom:26px; scroll-margin-top:20px;
+    box-shadow:0 1px 4px rgba(0,0,0,.04);
+  }
+  h2{display:flex; align-items:center; gap:10px; font-size:21px; margin:0 0 14px}
+  h2 .no{
+    flex:0 0 auto; width:30px; height:30px; border-radius:9px; background:#e0e9ff; color:#1d4ed8;
+    display:inline-flex; align-items:center; justify-content:center; font-size:15px; font-weight:800;
+  }
+  h3{font-size:16.5px; margin:20px 0 8px}
+  p{margin:8px 0}
+  ul,ol{margin:6px 0; padding-left:22px}
+  li{margin:4px 0}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    background:#f2f4f7; border:1px solid var(--line); border-radius:5px; padding:1px 5px; font-size:.92em}
+  .spell code{background:#0f172a; color:#a5f3fc; border:none; padding:6px 10px; border-radius:8px;
+    display:inline-block; word-break:break-all; font-size:13px; max-width:100%}
+  .muted{color:var(--muted); font-size:13.5px}
+  table{border-collapse:collapse; width:100%; margin:10px 0; font-size:14px}
+  th,td{border:1px solid var(--line); padding:7px 10px; text-align:left; vertical-align:top}
+  th{background:#f2f4f7}
+  .ctrl{
+    display:flex; flex-wrap:wrap; gap:14px 22px; align-items:flex-end;
+    background:#f6f8fa; border:1px solid var(--line); border-radius:12px; padding:12px 16px; margin:12px 0;
+  }
+  .ctrl label{display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(--muted)}
+  .ctrl label .lr{display:flex; align-items:center; gap:8px; color:var(--ink); font-weight:600}
+  .ctrl input[type=text]{font-family:ui-monospace,monospace; padding:6px 9px; border:1px solid var(--line);
+    border-radius:8px; width:280px; font-size:14px}
+  .ctrl input[type=range]{width:150px; accent-color:var(--accent)}
+  output{font-family:ui-monospace,monospace; background:#e0e9ff; color:#1d4ed8;
+    border-radius:6px; padding:1px 8px; font-weight:700; font-size:13px}
+  .btn{
+    border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:9px;
+    padding:7px 14px; font-size:13.5px; cursor:pointer; transition:.15s;
+  }
+  .btn:hover{border-color:var(--accent); color:var(--accent)}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600}
+  .btn.primary:hover{background:#1d4ed8; color:#fff}
+  .btn.mini{padding:4px 10px; font-size:12.5px}
+  /* ---------- viz widget ---------- */
+  .viz{border:1px solid var(--line); border-radius:12px; overflow:hidden; margin:14px 0}
+  .viz-bar{display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:10px 14px;
+    background:#fbfcfe; border-bottom:1px solid var(--line)}
+  .speed-wrap{font-size:13px; color:var(--muted); display:flex; align-items:center; gap:6px}
+  .speed-wrap input{width:90px; accent-color:var(--accent)}
+  .legend{display:flex; flex-wrap:wrap; gap:12px 16px; padding:8px 14px; font-size:12.5px; color:var(--muted);
+    border-bottom:1px solid var(--line); background:#fff}
+  .legend .sw{display:inline-block; width:13px; height:13px; border-radius:4px; margin-right:5px; vertical-align:-2px; border:1.5px solid #999}
+  .sw.c-path{background:#eaf1fb; border-color:#4a76c9}
+  .sw.c-branch{background:#fff3cd; border-color:#d4a017}
+  .sw.c-tip{background:#fde2e2; border-color:#d9534f}
+  .sw.c-end{background:#e2d9f3; border-color:#7e57c2}
+  .sw.c-vis{background:#d1f0d9; border-color:#1a7f37}
+  .svg-wrap{overflow-x:auto; padding:10px 6px; background:
+    linear-gradient(90deg,#fbfcfe,#fff); min-height:80px}
+  svg.dbsvg{display:block}
+  svg .edge{stroke:#b6bdca; stroke-width:1.6; fill:none}
+  svg .edge.e-vis{stroke:#2ea043; stroke-width:3}
+  svg .edge.e-cur{stroke:#0f7b2f; stroke-width:4; stroke-dasharray:7 4}
+  svg .arrow{fill:#9aa1ad}
+  svg .elab-bg{fill:#ffffff; opacity:.88; stroke:#e4e7eb}
+  svg .elab-t{font:11.5px ui-monospace,monospace; fill:#24292f}
+  svg .node rect{stroke-width:1.6}
+  svg .node.n-path rect{fill:#eaf1fb; stroke:#4a76c9}
+  svg .node.n-branch rect{fill:#fff3cd; stroke:#d4a017}
+  svg .node.n-tip rect{fill:#fde2e2; stroke:#d9534f}
+  svg .node.n-end rect{fill:#e2d9f3; stroke:#7e57c2}
+  svg .node.n-cur rect{stroke:#0f7b2f; stroke-width:3.4}
+  svg .node{cursor:default}
+  svg .node:hover rect{filter:brightness(.95)}
+  svg .nt{font:600 12.5px ui-monospace,monospace; fill:#1f2328}
+  svg .ns{font:10px ui-monospace,monospace; fill:#6b7280}
+  .viz-out{padding:12px 16px; border-top:1px solid var(--line); background:#fff; font-size:14px}
+  /* ---------- chips & boxes ---------- */
+  .chips{display:flex; flex-wrap:wrap; gap:8px; margin:8px 0}
+  .chip{background:#f2f4f7; border:1px solid var(--line); border-radius:999px; padding:2px 11px; font-size:12.5px; color:#374151}
+  .box{border-radius:10px; padding:10px 14px; margin:8px 0; font-size:14px; border:1px solid}
+  .box.ok{background:#f0fff4; border-color:#9ad9a8; color:#14532d}
+  .box.warn{background:#fff8f0; border-color:#f2c98a; color:#7c4a03}
+  .box.note{background:#f0f6ff; border-color:#b6d0f7; color:#1e3a8a}
+  .diff code{display:inline-block; word-break:break-all; max-width:100%}
+  .mis{color:#d9534f; font-weight:800; background:#fde2e2; border-radius:3px; padding:0 2px}
+  .hint{background:#fffbe6; border:1px dashed #e6c34a; border-radius:10px; padding:10px 14px;
+    font-size:14px; margin:12px 0 0}
+  .kmer-row{display:flex; flex-wrap:wrap; gap:6px; margin:10px 0}
+  .kmer{font-family:ui-monospace,monospace; font-size:13px; background:#eef2ff; color:#1e40af;
+    border:1px solid #c7d5f5; border-radius:6px; padding:2px 7px}
+  /* ---------- quiz ---------- */
+  .qcard{border:1px solid var(--line); border-radius:12px; padding:14px 18px; margin:12px 0; background:#fbfcfe}
+  .qtitle{font-weight:700; margin-bottom:10px}
+  .qopts{display:flex; flex-wrap:wrap; gap:8px}
+  .qopt{border:1px solid var(--line); background:#fff; border-radius:9px; padding:6px 13px;
+    font-size:13.5px; cursor:pointer; text-align:left}
+  .qopt:hover{border-color:var(--accent)}
+  .qopt.correct{background:#f0fff4; border-color:#1a7f37; color:#14532d; font-weight:700}
+  .qopt.picked-ok{outline:2.5px solid #1a7f37}
+  .qopt.picked-bad{outline:2.5px solid #d9534f; background:#fff5f5}
+  .qex{margin-top:10px; font-size:13.5px; background:#f2f4f7; border-radius:8px; padding:8px 12px}
+  .qscore{font-weight:800; font-size:16px; margin-top:10px; color:var(--accent)}
+  footer{text-align:center; color:var(--muted); font-size:13px; padding:26px 10px 40px}
+  #tt{
+    position:fixed; display:none; max-width:420px; background:#111827; color:#f9fafb;
+    font-size:12.5px; line-height:1.5; border-radius:8px; padding:7px 11px; z-index:99;
+    pointer-events:none; box-shadow:0 4px 14px rgba(0,0,0,.3); white-space:pre-line;
+  }
+  .flow{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:12px 0; font-size:13.5px}
+  .flow .st{background:#eef2ff; border:1px solid #c7d5f5; color:#1e3a8a; border-radius:9px; padding:5px 12px; font-weight:600}
+  .flow .ar{color:#94a3b8; font-weight:800}
+  .pill{display:inline-block; background:#e0e9ff; color:#1d4ed8; font-weight:700; border-radius:999px;
+    padding:1px 11px; font-size:12.5px; margin-right:6px}
+  .duo{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:14px 0}
+  @media (max-width:880px){ .duo{grid-template-columns:1fr} }
+  .panel{border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#fff}
+  .panel-t{padding:9px 14px; font-weight:700; font-size:13.5px; background:#f6f8fa; border-bottom:1px solid var(--line)}
+  svg .node.n-ham rect{fill:#d1f0d9; stroke:#1a7f37}
+  svg .node.n-fail rect{fill:#fde2e2; stroke:#d9534f}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>De Bruijn 图 与 A-Bruijn 图</h1>
+  <p>交互式基因组组装教程 —— 从一条字符串出发，亲手把 reads 拼回基因组</p>
+  <p class="muted" style="color:#dbeafe">所有演示均在你的浏览器中本地计算，无需联网、无外部依赖</p>
+  <span class="tag">🔬 de Bruijn graph · A-Bruijn graph · 欧拉路径 · 重复序列 · k-mer</span>
+</header>
+
+<nav id="toc">
+  <div class="t">目 录</div>
+  <a href="#s1">1 · 为什么需要图？</a>
+  <a href="#s2">2 · 构建与欧拉组装</a>
+  <a href="#s3">3 · 模拟真实 reads</a>
+  <a href="#s4">4 · 重复与 k 的选择</a>
+  <a href="#s5">5 · A-Bruijn 图</a>
+  <a href="#s6">6 · 哈密顿 vs 欧拉</a>
+  <a href="#s7">7 · 小测验</a>
+  <a href="#s8">8 · 总结与文献</a>
+</nav>
+
+<main>
+
+<!-- ============ 1 ============ -->
+<section id="s1" class="card">
+  <h2><span class="no">1</span>为什么组装需要图？</h2>
+  <p>测序仪无法一次读完整条染色体，只能产出大量<b>短片段（reads）</b>——短读长平台每条只有几十到几百 bp，
+  长读长平台（PacBio / Nanopore）虽能到几 kb 甚至更长，但错误率高达 5–15%。
+  <b>基因组组装</b>就是把这些碎片拼回完整基因组的"拼图问题"。</p>
+
+  <div class="flow">
+    <span class="st">reads</span><span class="ar">→</span>
+    <span class="st">切成 k-mers</span><span class="ar">→</span>
+    <span class="st">构建 de Bruijn 图</span><span class="ar">→</span>
+    <span class="st">欧拉路径</span><span class="ar">→</span>
+    <span class="st">基因组序列</span>
+  </div>
+
+  <h3>两种范式</h3>
+  <table>
+    <tr><th></th><th>OLC（Overlap–Layout–Consensus）</th><th>de Bruijn 图</th></tr>
+    <tr><td>核心操作</td><td>所有 reads <b>两两比对</b>找重叠</td><td>把 reads 切成 k-mer，按<b>固定重叠 k−1</b> 建图</td></tr>
+    <tr><td>复杂度</td><td>O(N²)，reads 多时吃不消</td><td>线性于总碱基量</td></tr>
+    <tr><td>组装 = ?</td><td>找哈密顿路径（NP-hard，需启发式）—— <b>→ 第 6 节详解</b></td><td>找<b>欧拉路径</b>（多项式，可精确求解）</td></tr>
+    <tr><td>适合</td><td>长读长（少量、长片段）</td><td>短读长（海量、短片段）</td></tr>
+    <tr><td>代表</td><td>Celera、FALCON、Canu</td><td>EULER(2001)、Velvet、ABySS、SOAPdenovo、SPAdes</td></tr>
+  </table>
+
+  <div class="box note">
+    <b>核心洞察（Pevzner–Tang–Waterman, PNAS 2001）：</b>不要问"哪两条 read 有重叠"，
+    而是把所有 reads 打碎成 <b>k-mer</b>（长度为 k 的子串）。相邻 k-mer 天然重叠 k−1 个字符，
+    于是"谁接在谁后面"变成图里的边——组装问题就从 NP-hard 的哈密顿路径变成了有高效解法的<b>欧拉路径</b>问题。
+  </div>
+
+  <p class="muted">本页最后会回到你目录里的两篇论文：Lin et al. 2016（用 de Bruijn 图处理长错误读长）
+  与 Antipov et al.（用 repeat graph 组装长读长）——它们都是这条思想脉络的延伸。</p>
+</section>
+
+<!-- ============ 2 ============ -->
+<section id="s2" class="card">
+  <h2><span class="no">2</span>动手构建：从字符串到 de Bruijn 图</h2>
+  <p><b>边视角（edge-centric）定义：</b>节点是所有 <b>(k−1)-mer</b>；从节点 u 到 v 有一条边，当且仅当
+  存在 k-mer 其前 k−1 个字符等于 u、后 k−1 个字符等于 v——也就是说<b>每条边就是一个 k-mer</b>。
+  组装 = 找一条<b>恰好走过每条边一次</b>的路径（欧拉路径），沿途每走一步追加该 k-mer 的最后一个字符。</p>
+
+  <div class="ctrl">
+    <label>基因组字符串（ACGT）<span class="lr"><input type="text" id="w1-genome" value="ATGGCGATCCGT" spellcheck="false"></span></label>
+    <label>k-mer 长度 k<span class="lr"><input type="range" id="w1-k" min="3" max="7" value="4"><output id="w1-kv">4</output></span></label>
+    <label>预设<span class="lr">
+      <button class="btn mini" data-seq="ATGGCGATCCGT">简单序列</button>
+      <button class="btn mini" data-seq="TACGTGGACGT">含精确重复（出现环！）</button>
+    </span></label>
+  </div>
+  <div id="w1"></div>
+
+  <div class="hint">💡 <b>试一试：</b>① 悬停节点 / 边，查看序列与覆盖度；② 换成预设"含精确重复"——注意黄色分支节点和两条平行的重复边（×2），
+  此时欧拉路径不再唯一；③ 把 k 调大，观察重复带来的分叉何时消失。</div>
+</section>
+
+<!-- ============ 3 ============ -->
+<section id="s3" class="card">
+  <h2><span class="no">3</span>模拟真实组装：reads、覆盖度与错误</h2>
+  <p>真实数据里我们没有基因组，只有<b>带错误、随机采样</b>的 reads。下面从一条"秘密基因组"模拟测序：
+  以给定<b>覆盖度</b>（平均每个碱基被测到几次）随机抽取 reads，并按<b>错误率</b>引入单碱基替换，然后完全从 reads 建图、走欧拉路径。</p>
+  <ul>
+    <li>🔴 <b>死端 tip</b>：测序错误产生的低覆盖 k-mer 无路可走，形成红色死胡同——真实组装器会做"tip 修剪"；</li>
+    <li>🟡 <b>分支</b>：来自重复序列或杂合变异；</li>
+    <li>🟣 <b>图断裂</b>：覆盖度不足或 k 过大时，reads 之间缺少连接，欧拉路径只能走完一个连通块。</li>
+  </ul>
+
+  <div class="ctrl">
+    <label>秘密基因组<span class="lr"><input type="text" id="w2-genome" value="ATGGCGATCCGTACCGGTTA" spellcheck="false"></span></label>
+    <label>read 长度<span class="lr"><input type="range" id="w2-rl" min="8" max="28" value="14"><output id="w2-rlv">14</output></span></label>
+    <label>覆盖度<span class="lr"><input type="range" id="w2-cov" min="1" max="12" value="6"><output id="w2-covv">6×</output></span></label>
+    <label>错误率 %<span class="lr"><input type="range" id="w2-err" min="0" max="8" step="0.5" value="2"><output id="w2-errv">2%</output></span></label>
+    <label>k<span class="lr"><input type="range" id="w2-k" min="3" max="8" value="4"><output id="w2-kv">4</output></span></label>
+    <label><span class="lr"><input type="checkbox" id="w2-filter"> 过滤低覆盖边（cov&lt;2，模拟错误校正）</span></label>
+    <label><span class="lr"><button class="btn mini" id="w2-resim">🎲 重新模拟测序</button></span></label>
+  </div>
+  <div id="w2"></div>
+
+  <div class="hint">💡 <b>试一试：</b>① 错误率 0%、覆盖度 ≥3× —— 应能<b>完美重建</b>基因组；
+  ② 把错误率拉到 6% —— 观察红色 tips 如何污染拼出的序列，再勾选"过滤低覆盖边"看是否救回来；
+  ③ 覆盖度降到 1×~2× —— 观察图断裂警告。</div>
+</section>
+
+<!-- ============ 4 ============ -->
+<section id="s4" class="card">
+  <h2><span class="no">4</span>重复序列与 k 的选择</h2>
+  <p>重复是组装的头号敌人。当重复长度 ≥ k 时，两个副本的 k-mer <b>完全相同</b>，在图中被合并成同一批节点/边——
+  路径在这里分叉（黄色节点），欧拉路径不再唯一，可能产生<b>嵌合（chimeric）组装</b>。
+  增大 k 可以让副本分离，但 k 太大又会提高对覆盖度和读长的要求。亲手找这个平衡点：</p>
+
+  <div class="ctrl">
+    <label>选择序列<span class="lr">
+      <select id="w3-preset" style="padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-size:14px">
+        <option value="ATGGCGATCCGT">① 简单序列（小 k 也有"偶然重复"）</option>
+        <option value="TTACGTGGACGTCCTT" selected>② 短精确重复 ACGT（4 bp）</option>
+        <option value="TTTGCGTACGAAAAGCGTACGCCC">③ 长精确重复 GCGTACG（7 bp）</option>
+      </select></span></label>
+    <label>k<span class="lr"><input type="range" id="w3-k" min="3" max="9" value="4"><output id="w3-kv">4</output></span></label>
+  </div>
+  <div id="w3"></div>
+
+  <div class="hint">💡 <b>试一试：</b>对序列②，k=4 时重复被折叠成分支，k=5 时副本分开；对序列③，分界在 k=7 → 8。
+  规律：<b>k 必须大于重复长度</b>才能区分副本。但注意序列①：即使"随机"序列，k 太小时也会到处是偶然重复——这正是组装器要把 k 调大的原因之一。</div>
+</section>
+
+<!-- ============ 5 ============ -->
+<section id="s5" class="card">
+  <h2><span class="no">5</span>A-Bruijn 图：允许"相似"的广义 de Bruijn 图</h2>
+  <p>de Bruijn 图只合并<b>完全相同</b>的 k-mer，一旦重复副本之间有突变（真实生物的重复家族几乎总是如此），副本就无法折叠。
+  <b>A-Bruijn 图</b>（Pevzner &amp; Tang, PNAS 2004；Raphael, Zhi, Tang &amp; Pevzner, JCB 2004；A = Assembling）把"合并规则"泛化：</p>
+  <ol>
+    <li>把整条序列拆成<b>位置 k-mer</b>（positional k-mer = k-mer + 它的位置）；</li>
+    <li>相邻位置之间连边；</li>
+    <li>按某个<b>等价关系 ξ（合并规则）</b>把位置 k-mer 粘合成节点——de Bruijn 图取 ξ = "序列完全相同"；
+        A-Bruijn 图允许 ξ = "序列<b>相似</b>"（例如海明距离 ≤ d）。</li>
+  </ol>
+  <p>下面的基因组和第 4 节的序列③同源，但第二个副本<b>突变了一个碱基</b>（GCGTACG → GCGC<b>A</b>CG）。
+  调整 d（允许的最大差异数），观察突变副本如何被折叠成一条"共识路径"：</p>
+
+  <div class="ctrl">
+    <label>基因组<span class="lr"><input type="text" id="w4-genome" value="AAAAGCGTACGAAAAGCGCACGAAAA" spellcheck="false"></span></label>
+    <label>k<span class="lr"><input type="range" id="w4-k" min="4" max="7" value="5"><output id="w4-kv">5</output></span></label>
+    <label>合并阈值 d（海明距离 ≤ d 的 k-mer 视为同一节点）<span class="lr"><input type="range" id="w4-d" min="0" max="3" value="0"><output id="w4-dv">0</output></span></label>
+  </div>
+  <div id="w4"></div>
+
+  <div class="hint">💡 <b>试一试：</b>① d=0：标准 de Bruijn 图——重复副本各走各的，形成"气泡"结构（两个黄色分支节点），
+  侧翼 k-mer 出现 ×2 覆盖；② d=1：含突变的 5 对 k-mer 被合并，<b>气泡塌缩成一条共识路径</b>，分支消失——这就是 A-Bruijn 处理重复家族的方式；
+  ③ d=2：注意出现<b>自环</b>和跨区域错误合并（过度折叠 → 嵌合风险），悬停节点看每个类合并了哪些位置——真实工具用序列比对+严格打分而不是简单距离阈值来避免这种错误。</div>
+</section>
+
+<!-- ============ 6 ============ -->
+<!-- ============ 6 ============ -->
+<section id="s6" class="card">
+  <h2><span class="no">6</span>哈密顿路径 vs 欧拉路径：一字之差，难度天壤</h2>
+  <p>第 1 节的对比表说过：重叠图（OLC）上的组装是<b>哈密顿路径</b>问题，de Bruijn 图上的组装是<b>欧拉路径</b>问题。
+  这两个"路径"只差一个字——一个访问每个<b>点</b>一次，一个走过每条<b>边</b>一次——计算难度却有云泥之别。本节把它们放在一起，亲手感受。</p>
+
+  <table>
+    <tr><th></th><th>哈密顿路径（Hamiltonian path）</th><th>欧拉路径（Euler path）</th></tr>
+    <tr><td>要求</td><td>访问<b>每个顶点</b>恰好一次</td><td>走过<b>每条边</b>恰好一次</td></tr>
+    <tr><td>起源</td><td>哈密顿的"环游世界"棋盘游戏（Icosian game，1857）</td><td>哥尼斯堡七桥问题（欧拉，1736）——图论的起点：4 块陆地度数全为奇数，所以不重复地走完七座桥<b>不可能</b></td></tr>
+    <tr><td>存在性判定</td><td>没有简单的局部条件；判定问题是 <b>NP-complete</b>（Karp 1972 年"21 个 NP 完全问题"之一）</td><td>图连通，且奇度顶点数为 0（回路）或 2（路径）——<b>数一下度数即可，O(E)</b></td></tr>
+    <tr><td>求解</td><td>最坏要枚举 ~n! 种访问顺序；最好的精确算法也是指数级（如 2ⁿ·poly(n)）</td><td><b>Hierholzer 算法</b>：线性时间 O(E) 直接构造解</td></tr>
+    <tr><td>对应到组装</td><td>重叠图：节点 = read，边 = 重叠 → 组装 = 哈密顿路径</td><td>de Bruijn 图：节点 = (k−1)-mer，边 = k-mer → 组装 = 欧拉路径</td></tr>
+  </table>
+
+  <div class="box note">
+    <b>为什么"边"和"点"一字之差，难度就天差地别？</b>
+    欧拉路径只依赖<b>局部</b>信息——每个顶点的入度/出度。走过的边用掉一条，度数随之减一；只要出发时图是"平衡"的，
+    每一步都有据可循，走不出去就回头接环（Hierholzer 的核心想法）。哈密顿路径则要求<b>全局</b>选择：
+    "下一个访问谁"会改变之后所有的选项，没有任何局部度数条件能保证全局不重不漏——只能回溯搜索。
+    Pevzner–Tang–Waterman（PNAS 2001）的关键洞察正是：<b>换一种图的表示，把 k-mer 放到边上，NP-hard 的组装立刻变成多项式的欧拉问题</b>——选择正确的表示，就是选择正确的计算复杂度。
+  </div>
+
+  <p>下面用<b>同一组 reads</b>（基因组 <code>ATGGCGATCCGTA</code> 切出的 5 条 read，重叠 ≥4bp 才连边）分别构建两种图：</p>
+
+  <div class="ctrl">
+    <label><span class="lr"><input type="checkbox" id="w5-dup"> 加入重复 read（<code>GCGATC</code> 第二份拷贝，模拟对同一区段的重复采样）</span></label>
+  </div>
+
+  <div class="duo">
+    <div class="panel">
+      <div class="panel-t">① 重叠图 OLC：read = 节点 → 组装 = 哈密顿路径（暴力枚举）</div>
+      <div id="w5-left">
+        <div class="viz-bar">
+          <button class="btn primary act-play">▶ 暴力搜索</button>
+          <button class="btn act-jump">⏭ 跳到首个结果</button>
+          <button class="btn act-end">⏩ 跳到最终统计</button>
+          <span class="speed-wrap">速度 <input type="range" class="speed" min="1" max="9" value="5"></span>
+        </div>
+        <div class="svg-wrap"></div>
+        <div class="viz-out"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-t">② de Bruijn 图：k-mer = 边 → 组装 = 欧拉路径（Hierholzer）</div>
+      <div id="w5-right"></div>
+    </div>
+  </div>
+
+  <div class="hint">💡 <b>试一试：</b>① 点左边"▶ 暴力搜索"，看它一个个排列地试、不断回溯；也可以点"⏩ 跳到最终统计"直接看结论；
+  ② 勾选"加入重复 read"——排列数从 <b>120</b> 暴涨到 <b>720</b>，而且能找到 <b>2 条</b>等效哈密顿路径（歧义！重复让"访问顺序"不再唯一）；
+  ③ 右边点"▶ 播放欧拉路径"：同一个 reads 集合，欧拉路径 <b>9 步</b>走完，完全不受重复影响——重复只是覆盖度 ×2。</div>
+
+  <div class="box warn">
+    <b>诚实的补充：</b>真实组装器都不会真去枚举 n!——OLC 组装器用贪心/启发式（"每次接最长的重叠"），大多数情形表现良好，
+    但 NP-complete 是关于<b>最坏情形</b>的论断，无法给出保证。同样，真实的 de Bruijn 组装器还要对付重复与分支（见第 4、5 节），
+    欧拉路径只是给了它一个"保证能算完"的骨架。
+  </div>
+</section>
+
+<section id="s7" class="card">
+  <h2><span class="no">7</span>小测验</h2>
+  <div id="quiz"></div>
+</section>
+
+<!-- ============ 7 ============ -->
+<section id="s8" class="card">
+  <h2><span class="no">8</span>总结与延伸阅读</h2>
+  <table>
+    <tr><th></th><th>de Bruijn 图</th><th>A-Bruijn 图</th></tr>
+    <tr><td>节点</td><td>k-mer（边视角下为 (k−1)-mer）</td><td><b>位置 k-mer 的等价类</b></td></tr>
+    <tr><td>合并依据</td><td>序列<b>完全相同</b></td><td>任意规则 ξ（典型：<b>比对相似性</b>）</td></tr>
+    <tr><td>组装方式</td><td colspan="2">欧拉路径（每条边恰好走一次，拼接出序列）—— 完全相同</td></tr>
+    <tr><td>相互关系</td><td colspan="2"><b>d = 0 的 A-Bruijn 图就是 de Bruijn 图</b>（特例）</td></tr>
+    <tr><td>擅长</td><td>短读长大规模组装</td><td>突变重复家族的折叠 / 从头重复分类 / 多重比对（ABA）</td></tr>
+    <tr><td>弱点</td><td>k 的权衡：太小合并重复、太大图断裂</td><td>阈值过松会过度合并 → 嵌合</td></tr>
+    <tr><td>代表</td><td>Velvet、ABySS、SOAPdenovo、SPAdes</td><td>Pevzner–Tang 2004、ABA、AliWABA</td></tr>
+  </table>
+
+  <h3>关键文献</h3>
+  <ul>
+    <li>Pevzner, Tang &amp; Waterman (2001). <i>An Eulerian path approach to DNA fragment assembly</i>. PNAS —— EULER，de Bruijn 组装开山之作。</li>
+    <li>Pevzner, Tang et al. (2004). <i>De novo repeat classification and fragment assembly</i>. PNAS —— 提出 A-Bruijn 图。<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC515325" target="_blank">PMC515325</a></li>
+    <li>Raphael, Zhi, Tang &amp; Pevzner (2004). <i>A-Bruijn graph approach to de novo assembly of repeat families</i>. J. Comput. Biol.</li>
+    <li>Zhi et al. (2006). <i>Identifying repeat domains in large genomes</i>. Genome Biology —— A-Bruijn 框架用于重复结构域。<a href="https://link.springer.com/article/10.1186/gb-2006-7-1-r7" target="_blank">链接</a></li>
+    <li>Compeau &amp; Pevzner. <i>Bioinformatics Algorithms: An Active Learning Approach</i> —— 第 3–5 章是本教程最好的配套教材。</li>
+  </ul>
+
+  <h3>本目录中的相关论文</h3>
+  <ul>
+    <li><a href="lin-et-al-2016-assembly-of-long-error-prone-reads-using-de-bruijn-graphs.pdf">Lin et al. 2016 — Assembly of long error-prone reads using de Bruijn graphs</a>：把 de Bruijn 图思想用于长错误读长的纠错与组装；读完本页第 3 节（错误 → tips）就更容易理解它为什么有效。</li>
+    <li><a href="Assembly-of-Long-Error-Prone-Reads-Using-Repeat-Graphs.pdf">Antipov et al. — Assembly of long error-prone reads using repeat graphs</a>：现代"repeat graph"是 A-Bruijn"折叠重复"思想的直系后代——用图结构显式表示重复，再用长读长分辨副本。</li>
+  </ul>
+
+  <h3>动手玩真实工具</h3>
+  <p>想在真实数据上复现本页概念：用 <a href="https://cab.spbu.ru/files/release-spades/" target="_blank">SPAdes</a>（多 k de Bruijn 组装器，输出 .gfa 可导入
+  <a href="https://rrwick.github.io/Bandage/" target="_blank">Bandage</a> 可视化——你会看到和本页一模一样的 tips、气泡与 repeat 结构），
+  或 <a href="https://github.com/rrwick/Unicycler" target="_blank">Unicycler</a>（用 SPAdes 的 repeat graph 桥接长读）。</p>
+</section>
+
+</main>
+
+<footer>de Bruijn / A-Bruijn 交互式教程 · 纯前端本地运行 · 由 ZCode 生成 · 控件数据均为确定性种子，可复现</footer>
+<div id="tt"></div>
+
+<script>
+// ---- LOGIC-START ----
+'use strict';
+function mulberry32(seed){
+  let a = seed >>> 0;
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function sanitizeSeq(s){ return (s || '').toUpperCase().replace(/[^ACGT]/g, ''); }
+function kmersOf(s, k){
+  const out = [];
+  if(!s || k < 1) return out;
+  for(let i = 0; i + k <= s.length; i++) out.push(s.slice(i, i + k));
+  return out;
+}
+function hamming(a, b){
+  let d = 0;
+  const n = Math.min(a.length, b.length);
+  for(let i = 0; i < n; i++) if(a[i] !== b[i]) d++;
+  return d + Math.abs(a.length - b.length);
+}
+/* edge-centric graph: nodes = (k-1)-mers, edges = k-mers */
+function buildGraph(seqs, k){
+  const nodes = new Map(), edges = [];
+  for(const s of seqs){
+    if(!s || s.length < k) continue;
+    for(let i = 0; i + k <= s.length; i++){
+      const a = s.slice(i, i + k - 1), b = s.slice(i + 1, i + k), lab = s.slice(i, i + k);
+      if(!nodes.has(a)) nodes.set(a, {seq:a, cov:0, inn:0, out:0});
+      if(!nodes.has(b)) nodes.set(b, {seq:b, cov:0, inn:0, out:0});
+      let e = null;
+      for(const c of edges){ if(c.from === a && c.to === b && c.label === lab){ e = c; break; } }
+      if(e) e.cov++; else edges.push({from:a, to:b, label:lab, cov:1});
+      nodes.get(a).cov++; nodes.get(b).cov++;
+    }
+  }
+  nodes.forEach(n => { n.inE = 0; n.outE = 0; });
+  edges.forEach(e => {
+    nodes.get(e.from).outE++; nodes.get(e.from).out += e.cov;
+    nodes.get(e.to).inE++;    nodes.get(e.to).inn += e.cov;
+  });
+  return {k, nodes, edges};
+}
+function emptyGraph(k){ return {k, nodes:new Map(), edges:[]}; }
+/* 分支 = 有多种不同的出边/入边（真正的分叉）；cov 之和只反映重复拷贝数 */
+function classifyNode(n){
+  if(n.inE === 0 && n.outE === 0) return 'iso';
+  if(n.inE > 1 || n.outE > 1) return 'branch';
+  if(n.inE === 0 || n.outE === 0) return (n.cov <= 2) ? 'tip' : 'end';
+  return 'path';
+}
+function computeLayers(g){
+  /* 沿前驱方向 DFS 求最长路径分层；回边（环）跳过，不参与分层但仍会绘制成向左的回环 */
+  const preds = new Map();
+  g.nodes.forEach((n, s) => preds.set(s, []));
+  g.edges.forEach(e => { if(e.from !== e.to) preds.get(e.to).push(e.from); });
+  const layer = new Map(), state = new Map();
+  g.nodes.forEach((n, s) => state.set(s, 0));
+  function dfs(u, isRoot){
+    state.set(u, 1);
+    let max = -1;
+    for(const p of preds.get(u)){
+      const st = state.get(p);
+      if(st === 1) continue;                     // 回边（环）：跳过
+      if(isRoot && st === 0) continue;           // 顶层根不沿入边回溯，确保根在最左层
+      if(st === 0) dfs(p, false);
+      if(layer.get(p) > max) max = layer.get(p);
+    }
+    layer.set(u, max + 1);
+    state.set(u, 2);
+  }
+  g.nodes.forEach((n, s) => { if(state.get(s) === 0) dfs(s, true); });
+  return layer;
+}
+function nodeW(s){ return Math.max(46, s.length * 8.6 + 16); }
+function layoutGraph(g){
+  const layer = computeLayers(g);
+  const byL = new Map();
+  g.nodes.forEach((n, s) => {
+    const L = layer.get(s) || 0;
+    if(!byL.has(L)) byL.set(L, []);
+    byL.get(L).push(s);
+  });
+  let maxL = 0, maxC = 0;
+  byL.forEach((arr, L) => { arr.sort(); maxL = Math.max(maxL, L); maxC = Math.max(maxC, arr.length); });
+  const hasLoop = g.edges.some(e => e.from === e.to);
+  const colW = hasLoop ? 180 : 150, rowH = 64, padX = 30, padY = 28;
+  const pos = new Map();
+  byL.forEach((arr, L) => arr.forEach((s, i) => pos.set(s, {x:padX + L * colW, y:padY + i * rowH})));
+  return {pos, width:padX * 2 + maxL * colW + 100, height:padY * 2 + Math.max(maxC - 1, 0) * rowH + 44};
+}
+/* Hierholzer euler trail.
+   once=true（reads 场景）：完全相同的 reads 只是重复观测（覆盖度），不是基因组的
+   重复拷贝——每条不同的边只走一次，cov 仅作覆盖度显示。若按 cov 展开成多重图，
+   多副本 reads 会让 出−入 度变成 ±N，破坏欧拉平衡，走出不连贯的"伪路径"。
+   基因组字符串场景（默认 false）：cov=2 的边代表真实的重复拷贝，必须走两次。 */
+function eulerPath(g, opts){
+  const once = !!(opts && opts.once);
+  const inst = [];
+  g.edges.forEach((e, ei) => {
+    const reps = once ? 1 : e.cov;
+    for(let c = 0; c < reps; c++) inst.push({ei, from:e.from, to:e.to, ch:e.label[e.label.length - 1]});
+  });
+  const outI = new Map(), inDeg = new Map();
+  g.nodes.forEach((n, s) => { outI.set(s, []); inDeg.set(s, 0); });
+  inst.forEach((e, i) => { outI.get(e.from).push(i); inDeg.set(e.to, inDeg.get(e.to) + 1); });
+  let start = null;
+  g.nodes.forEach((n, s) => { if(start === null && outI.get(s).length - inDeg.get(s) === 1) start = s; });
+  if(start === null){ g.nodes.forEach((n, s) => { if(start === null && outI.get(s).length > 0) start = s; }); }
+  if(start === null) return {edgeSeq:[], nodeSeq:[], spelled:'', startSeq:'', remaining:0, complete:true};
+  const ptr = new Map();
+  g.nodes.forEach((n, s) => ptr.set(s, 0));
+  const used = new Array(inst.length).fill(false);
+  const stack = [[start, -1]], order = [];
+  while(stack.length){
+    const top = stack[stack.length - 1];
+    const list = outI.get(top[0]);
+    let adv = false;
+    while(ptr.get(top[0]) < list.length){
+      const ii = list[ptr.get(top[0])];
+      ptr.set(top[0], ptr.get(top[0]) + 1);
+      if(!used[ii]){ used[ii] = true; stack.push([inst[ii].to, ii]); adv = true; break; }
+    }
+    if(!adv) order.push(stack.pop());
+  }
+  order.reverse();
+  const edgeSeq = order.slice(1).map(o => o[1]);
+  const nodeSeq = order.map(o => o[0]);
+  /* A-Bruijn 图的节点键是数字索引，拼写必须用节点的序列而非键 */
+  const startSeq = g.nodes.get(nodeSeq[0]).seq;
+  let spelled = startSeq;
+  for(const ei of edgeSeq) spelled += inst[ei].ch;
+  const remaining = used.reduce((x, u) => x + (u ? 0 : 1), 0);
+  return {edgeSeq, nodeSeq, spelled, startSeq, remaining, complete:remaining === 0};
+}
+function simulateReads(genome, readLen, coverage, errRate, rng){
+  readLen = Math.min(readLen, genome.length);
+  const num = Math.max(2, Math.round(coverage * genome.length / readLen));
+  const reads = [];
+  for(let r = 0; r < num; r++){
+    let s;
+    if(r === 0) s = 0;
+    else if(r === 1) s = genome.length - readLen;
+    else s = Math.floor(rng() * (genome.length - readLen + 1));
+    let seq = '';
+    for(let i = 0; i < readLen; i++){
+      let c = genome[s + i];
+      if(rng() < errRate) c = 'ACGT'[Math.floor(rng() * 4)];
+      seq += c;
+    }
+    reads.push(seq);
+  }
+  return reads;
+}
+function filterGraph(g, minCov){
+  const nodes = new Map(), edges = [];
+  g.edges.forEach(e => {
+    if(e.cov < minCov) return;
+    if(!nodes.has(e.from)) nodes.set(e.from, {seq:e.from, cov:0, inn:0, out:0});
+    if(!nodes.has(e.to)) nodes.set(e.to, {seq:e.to, cov:0, inn:0, out:0});
+    edges.push({from:e.from, to:e.to, label:e.label, cov:e.cov});
+    nodes.get(e.from).cov += e.cov;
+    nodes.get(e.to).cov += e.cov;
+  });
+  nodes.forEach(n => { n.inE = 0; n.outE = 0; });
+  edges.forEach(e => {
+    nodes.get(e.from).outE++; nodes.get(e.from).out += e.cov;
+    nodes.get(e.to).inE++;    nodes.get(e.to).inn += e.cov;
+  });
+  return {k:g.k, nodes, edges};
+}
+/* A-Bruijn: positional k-mers glued by hamming distance <= d (d=0 -> de Bruijn) */
+function buildABruijn(genome, k, d){
+  const n = genome.length - k + 1;
+  const km = [];
+  for(let i = 0; i < n; i++) km.push(genome.slice(i, i + k));
+  const parent = [];
+  for(let i = 0; i < n; i++) parent.push(i);
+  function find(x){ while(parent[x] !== x){ parent[x] = parent[parent[x]]; x = parent[x]; } return x; }
+  function union(a, b){ a = find(a); b = find(b); if(a !== b) parent[b] = a; }
+  const gluedPairs = [];
+  for(let i = 0; i < n; i++){
+    for(let j = i + 1; j < n; j++){
+      const h = hamming(km[i], km[j]);
+      if(h <= d) union(i, j);
+      if(h > 0 && h <= d) gluedPairs.push({a:km[i], b:km[j], dist:h, posA:i, posB:j});
+    }
+  }
+  const members = new Map();
+  for(let i = 0; i < n; i++){ const r = find(i); if(!members.has(r)) members.set(r, []); members.get(r).push(i); }
+  const nodes = new Map();
+  members.forEach((arr, r) => {
+    arr.sort((x, y) => x - y);
+    nodes.set(r, {seq:km[arr[0]], cov:arr.length, inn:0, out:0, members:arr});
+  });
+  const eMap = new Map(), edges = [];
+  for(let i = 0; i + 1 < n; i++){
+    const a = find(i), b = find(i + 1);
+    const key = a + '>' + b;
+    if(!eMap.has(key)){ eMap.set(key, edges.length); edges.push({from:a, to:b, label:genome[i + k], cov:0}); }
+    edges[eMap.get(key)].cov++;
+  }
+  nodes.forEach(n => { n.inE = 0; n.outE = 0; });
+  edges.forEach(e => {
+    nodes.get(e.from).outE++; nodes.get(e.from).out += e.cov;
+    nodes.get(e.to).inE++;    nodes.get(e.to).inn += e.cov;
+  });
+  const similarPairs = gluedPairs.filter(p => p.dist > 0).length;
+  return {k, nodes, edges, gluedPairs, similarPairs, nClasses:members.size, nKmers:n};
+}
+/* OLC 重叠图：节点 = 每条 read 实例，边 = 后缀-前缀最大重叠 ≥ minOv。
+   用于第 6 节对比：同样的 reads，重叠图上是 NP-hard 的哈密顿路径，de Bruijn 图上是 O(E) 的欧拉路径 */
+function overlapLen(a, b, minOv){
+  const maxL = Math.min(a.length, b.length);
+  for(let L = maxL; L >= minOv; L--){
+    if(a.slice(a.length - L) === b.slice(0, L)) return L;
+  }
+  return 0;
+}
+function buildOverlapGraph(reads, minOv){
+  const nodes = new Map(), edges = [];
+  const cnt = new Map();
+  reads.forEach(r => cnt.set(r, (cnt.get(r) || 0) + 1));
+  reads.forEach((r, i) => {
+    nodes.set(i, {key:i, seq:r, cov:1, inn:0, out:0, inE:0, outE:0, dup:cnt.get(r) > 1});
+  });
+  for(let i = 0; i < reads.length; i++){
+    for(let j = 0; j < reads.length; j++){
+      if(i === j) continue;
+      const L = overlapLen(reads[i], reads[j], minOv);
+      if(L > 0) edges.push({from:i, to:j, label:reads[i].slice(reads[i].length - L), ov:L, cov:1});
+    }
+  }
+  edges.forEach(e => { nodes.get(e.from).outE++; nodes.get(e.to).inE++; });
+  return {nodes, edges, minOv};
+}
+/* 按访问顺序拼写：第一条 read + 后续 read 超出重叠的后缀 */
+function spellFromOrder(reads, order, minOv){
+  if(!order.length) return '';
+  let s = reads[order[0]];
+  for(let i = 1; i < order.length; i++){
+    const L = overlapLen(reads[order[i-1]], reads[order[i]], minOv);
+    if(L === 0) return null;
+    s += reads[order[i]].slice(L);
+  }
+  return s;
+}
+/* 枚举全部哈密顿路径（回溯 DFS；仅用于小规模演示与统计） */
+function hamiltonianPaths(g){
+  const keys = [...g.nodes.keys()];
+  const adj = new Map();
+  keys.forEach(k => adj.set(k, new Set()));
+  g.edges.forEach(e => adj.get(e.from).add(e.to));
+  const out = [];
+  function rec(u, used, path){
+    if(path.length === keys.length){ out.push(path.slice()); return; }
+    for(const v of keys){
+      if(!used.has(v) && adj.get(u).has(v)){
+        used.add(v); path.push(v);
+        rec(v, used, path);
+        used.delete(v); path.pop();
+      }
+    }
+  }
+  for(const s of keys) rec(s, new Set([s]), [s]);
+  return out;
+}
+// ---- LOGIC-END ----
+
+/* ================= UI helpers ================= */
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s){ return escHtml(s).replace(/"/g,'&quot;'); }
+const okBox = t => `<div class="box ok">${t}</div>`;
+const warnBox = t => `<div class="box warn">${t}</div>`;
+const noteBox = t => `<div class="box note">${t}</div>`;
+function chips(arr){ return '<div class="chips">' + arr.map(x => `<span class="chip">${x}</span>`).join('') + '</div>'; }
+/* 单字符串场景没有测序错误，死端就是正常的序列末端，用紫色而非红色 */
+function nodeClsEnds(n){ const c = classifyNode(n); return 'n-' + (c === 'tip' ? 'end' : c); }
+
+let SVG_SEQ = 0;
+function renderGraphSVG(g, o){
+  o = o || {};
+  const lay = layoutGraph(g);
+  const id = 'svg' + (++SVG_SEQ);
+  const H = 34;
+  let edgesSvg = '';
+  /* 用 Map-of-Map 分组以保留节点键的原始类型（A-Bruijn 的键是数字） */
+  const groups = new Map();
+  g.edges.forEach((e, ei) => {
+    let m = groups.get(e.from);
+    if(!m){ m = new Map(); groups.set(e.from, m); }
+    if(!m.has(e.to)) m.set(e.to, []);
+    m.get(e.to).push(ei);
+  });
+  groups.forEach((m, f) => {
+    m.forEach((idxs, t) => {
+    const p1 = lay.pos.get(f), p2 = lay.pos.get(t);
+    const n1 = g.nodes.get(f), n2 = g.nodes.get(t);
+    idxs.forEach((ei, ii) => {
+      const e = g.edges[ei];
+      const off = idxs.length > 1 ? (ii - (idxs.length - 1) / 2) * 26 : 0;
+      let d, lx, ly;
+      if(f === t){
+        const x = p1.x + nodeW(n1.seq), y = p1.y;
+        d = `M ${x + 2} ${y + 6} C ${x + 54} ${y - 18}, ${x + 54} ${y + 52}, ${x + 2} ${y + 28}`;
+        lx = x + 66; ly = y + 16;
+      } else {
+        const w1 = nodeW(n1.seq), w2 = nodeW(n2.seq);
+        const x1 = p1.x + w1, y1 = p1.y + H / 2, x2 = p2.x, y2 = p2.y + H / 2;
+        const mx = (x1 + x2) / 2;
+        d = `M ${x1} ${y1} C ${mx} ${y1 + off}, ${mx} ${y2 + off}, ${x2} ${y2}`;
+        lx = (x1 + 3 * mx + 3 * mx + x2) / 8;
+        ly = (y1 + 3 * (y1 + off) + 3 * (y2 + off) + y2) / 8;
+      }
+      const cls = (o.visited && o.visited.has(ei)) ? ' e-vis' : (o.currentEdge === ei ? ' e-cur' : '');
+      const tip = o.edgeTipFn ? o.edgeTipFn(e) : `边（k-mer）: ${e.label} | 覆盖度 ×${e.cov}`;
+      const lab = e.label + (e.cov > 1 ? ' ×' + e.cov : '');
+      const lw = lab.length * 6.9 + 10;
+      edgesSvg += `<path class="edge${cls}" data-tip="${escAttr(tip)}" d="${d}" marker-end="url(#ar-${id})"/>`
+        + `<g class="elab" data-tip="${escAttr(tip)}"><rect class="elab-bg" x="${lx - lw / 2}" y="${ly - 8}" width="${lw}" height="16" rx="4"/>`
+        + `<text class="elab-t" x="${lx}" y="${ly + 4}" text-anchor="middle">${escHtml(lab)}</text></g>`;
+    });
+    });
+  });
+  let nodesSvg = '';
+  g.nodes.forEach((n, seq) => {
+    const p = lay.pos.get(seq);
+    const w = nodeW(n.seq);
+    const cls = o.nodeClassFn ? o.nodeClassFn(n) : ('n-' + classifyNode(n));
+    const cur = o.currentNode === seq ? ' n-cur' : '';
+    const sub = o.nodeSubFn ? o.nodeSubFn(n) : (n.cov > 1 ? '×' + n.cov : '');
+    const tip = o.tipFn ? o.tipFn(n)
+      : `节点（${g.k - 1}-mer）: ${n.seq}\n出现 ×${n.cov} | 入 ${n.inE} 种边（×${n.inn}）/ 出 ${n.outE} 种边（×${n.out}）`;
+    nodesSvg += `<g class="node ${cls}${cur}" transform="translate(${p.x},${p.y})" data-tip="${escAttr(tip)}">`
+      + `<rect width="${w}" height="${H}" rx="7"/>`
+      + `<text class="nt" x="${w / 2}" y="14" text-anchor="middle">${escHtml(n.seq)}</text>`
+      + (sub ? `<text class="ns" x="${w / 2}" y="27" text-anchor="middle">${escHtml(sub)}</text>` : '')
+      + `</g>`;
+  });
+  const W = lay.width, Ht = lay.height;
+  return `<svg class="dbsvg" viewBox="0 0 ${W} ${Ht}" width="${W}" height="${Ht}">`
+    + `<defs><marker id="ar-${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">`
+    + `<path d="M0,0 L10,5 L0,10 z" class="arrow"/></marker></defs>`
+    + edgesSvg + nodesSvg + `</svg>`;
+}
+
+/* generic interactive graph widget with Euler-path player */
+function createWidget(rootId, buildFn){
+  const root = document.getElementById(rootId);
+  root.classList.add('viz');
+  root.innerHTML = `
+    <div class="viz-bar">
+      <button class="btn primary act-play">▶ 播放欧拉路径</button>
+      <button class="btn act-step">单步 ⏭</button>
+      <button class="btn act-reset">↺ 重置</button>
+      <span class="speed-wrap">速度 <input type="range" class="speed" min="1" max="9" value="5"></span>
+    </div>
+    <div class="legend">
+      <span><i class="sw c-path"></i>普通节点</span>
+      <span><i class="sw c-branch"></i>分支（重复 / 变体）</span>
+      <span><i class="sw c-tip"></i>死端 tip（错误）</span>
+      <span><i class="sw c-end"></i>序列末端</span>
+      <span><i class="sw c-vis"></i>已走过 / 拼出路径</span>
+    </div>
+    <div class="svg-wrap"></div>
+    <div class="viz-out"></div>`;
+  const q = c => root.querySelector(c);
+  const S = {pos:0, playing:false, timer:null, data:null, eu:null};
+  function stop(){
+    S.playing = false;
+    if(S.timer){ clearTimeout(S.timer); S.timer = null; }
+    q('.act-play').textContent = '▶ 播放欧拉路径';
+  }
+  function tick(){
+    if(!S.eu || S.pos >= S.eu.edgeSeq.length){ stop(); return; }
+    S.pos++;
+    render();
+  }
+  function schedule(){
+    if(!S.playing) return;
+    S.timer = setTimeout(() => { tick(); schedule(); }, Math.round(1600 / (+q('.speed').value)));
+  }
+  function render(){
+    const d = S.data, eu = S.eu;
+    const N = eu.edgeSeq.length;
+    const visited = new Set(eu.edgeSeq.slice(0, S.pos));
+    const curE = S.pos > 0 ? eu.edgeSeq[S.pos - 1] : -1;
+    const curN = eu.nodeSeq.length ? eu.nodeSeq[Math.min(S.pos, eu.nodeSeq.length - 1)] : undefined;
+    const spelled = eu.spelled.slice(0, eu.startSeq.length + S.pos);
+    q('.svg-wrap').innerHTML = renderGraphSVG(d.g, Object.assign({visited, currentEdge:curE, currentNode:curN}, d.svgOpts || {}));
+    let html = `<div class="spell">拼出: <code>${escHtml(spelled) || '（空）'}</code> <span class="muted">第 ${S.pos}/${N} 步</span></div>`;
+    if(S.pos >= N && !eu.complete){
+      html += warnBox(`⚠ 图不连通：欧拉路径只走完了 ${N - eu.remaining} 条边，还有 <b>${eu.remaining} 条边</b>无法到达。` +
+        ` 通常因为覆盖度不足或 k 过大，reads 之间缺少连接——真实组装器会输出多条 contig（组装碎片化）。`);
+    }
+    if(d.footer) html += d.footer(eu, spelled);
+    q('.viz-out').innerHTML = html;
+  }
+  function refresh(){
+    stop();
+    S.data = buildFn();
+    S.eu = eulerPath(S.data.g, S.data.walkOpts);
+    S.pos = 0;
+    render();
+  }
+  q('.act-play').addEventListener('click', () => {
+    if(S.playing){ stop(); return; }
+    if(S.pos >= S.eu.edgeSeq.length) S.pos = 0;
+    S.playing = true;
+    q('.act-play').textContent = '⏸ 暂停';
+    tick();
+    schedule();
+  });
+  q('.act-step').addEventListener('click', () => { stop(); tick(); });
+  q('.act-reset').addEventListener('click', () => { stop(); S.pos = 0; render(); });
+  q('.speed').addEventListener('input', () => { if(S.playing){ stop(); S.playing = true; q('.act-play').textContent = '⏸ 暂停'; schedule(); } });
+  refresh();
+  return {refresh};
+}
+
+function diffBox(genome, got){
+  const n = Math.min(genome.length, got.length);
+  let same = 0, g = '', r = '';
+  for(let i = 0; i < n; i++){
+    if(genome[i] === got[i]){ same++; g += escHtml(genome[i]); r += escHtml(got[i]); }
+    else { g += '<b class="mis">' + escHtml(genome[i]) + '</b>'; r += '<b class="mis">' + escHtml(got[i]) + '</b>'; }
+  }
+  let tail = '';
+  if(genome.length !== got.length){
+    tail = `<div class="muted">长度不同：组装 ${got.length} bp vs 真实 ${genome.length} bp —— 错误支路被走进了路径（插入）或覆盖断裂（缺失）。</div>`;
+  }
+  const pct = Math.round(100 * same / Math.max(n, 1));
+  return `<div class="box warn">❌ 组装结果与真实基因组不一致（前缀相似度 ${pct}%）：
+    <div class="diff"><span class="muted">真实：</span><code>${g}${genome.length > n ? '…' : ''}</code></div>
+    <div class="diff"><span class="muted">组装：</span><code>${r}${got.length > n ? '…' : ''}</code></div>${tail}
+    <div class="muted">提示：勾选"过滤低覆盖边"（模拟真实组装器的错误校正），再看一次。</div></div>`;
+}
+
+/* ================= section 2 widget ================= */
+(function(){
+  const gEl = document.getElementById('w1-genome');
+  const kEl = document.getElementById('w1-k');
+  const kOut = document.getElementById('w1-kv');
+  function build(){
+    const seq = sanitizeSeq(gEl.value);
+    const k = +kEl.value;
+    kOut.textContent = k;
+    if(seq.length < k + 1){
+      return {g:emptyGraph(k), footer:() => warnBox('序列太短：长度至少需要 k+1。')};
+    }
+    const g = buildGraph([seq], k);
+    return {g, svgOpts:{nodeClassFn:nodeClsEnds}, footer:function(eu){
+      const branches = [...g.nodes.values()].filter(n => classifyNode(n) === 'branch');
+      let h = chips([`序列 ${seq.length} bp`, `k=${k}`, `节点 ${g.nodes.size}`, `边 ${g.edges.length}`, `分支节点 ${branches.length}`]);
+      if(branches.length){
+        h += warnBox(`⚠ 发现 <b>${branches.length}</b> 个分支节点（${branches.slice(0,3).map(n => '<code>' + n.seq + '</code>').join('、')}${branches.length > 3 ? '…' : ''}）：` +
+          `序列中存在重复（或反向/回文结构），副本在图中被合并，<b>欧拉路径不再唯一</b>——这正是重复序列在真实组装中的形态。试着增大 k。`);
+      } else {
+        h += okBox(`✓ 线性链：每个节点入度 = 出度 = 1，欧拉路径唯一，拼出的序列就是原字符串。`);
+      }
+      return h;
+    }};
+  }
+  const w = createWidget('w1', build);
+  gEl.addEventListener('input', w.refresh);
+  kEl.addEventListener('input', w.refresh);
+  document.querySelectorAll('#s2 .ctrl button[data-seq]').forEach(b => {
+    b.addEventListener('click', () => { gEl.value = b.dataset.seq; w.refresh(); });
+  });
+})();
+
+/* ================= section 3 widget ================= */
+(function(){
+  const gEl = document.getElementById('w2-genome');
+  const rlEl = document.getElementById('w2-rl'), rlOut = document.getElementById('w2-rlv');
+  const covEl = document.getElementById('w2-cov'), covOut = document.getElementById('w2-covv');
+  const errEl = document.getElementById('w2-err'), errOut = document.getElementById('w2-errv');
+  const kEl = document.getElementById('w2-k'), kOut = document.getElementById('w2-kv');
+  const fEl = document.getElementById('w2-filter');
+  let seed = 20240601;
+  const w = createWidget('w2', function(){
+    const genome = sanitizeSeq(gEl.value);
+    const rl = +rlEl.value, cov = +covEl.value, err = +errEl.value / 100;
+    let k = +kEl.value;
+    k = Math.max(2, Math.min(k, rl - 1));
+    kOut.textContent = k + (k < +kEl.value ? '（受 read 长度限制）' : '');
+    const rng = mulberry32(seed);
+    const reads = genome.length >= k + 1 ? simulateReads(genome, rl, cov, err, rng) : [];
+    let g = buildGraph(reads, k);
+    if(fEl.checked) g = filterGraph(g, 2);
+    const allCov = g.edges.reduce((x, e) => x + e.cov, 0);
+    const tips = [...g.nodes.values()].filter(n => classifyNode(n) === 'tip').length;
+    const branches = [...g.nodes.values()].filter(n => classifyNode(n) === 'branch').length;
+    return {g, walkOpts:{once:true}, footer:function(eu, spelled){
+      let h = chips([
+        `reads ${reads.length} 条 × ${Math.min(rl, genome.length)} bp`,
+        `平均覆盖 ≈ ${(reads.length * Math.min(rl, genome.length) / Math.max(genome.length,1)).toFixed(1)}×`,
+        `k=${k}`, `k-mer 实例 ${allCov}`, `节点 ${g.nodes.size}`,
+        `分支 ${branches}`, `tips ${tips}`, fEl.checked ? '已过滤 cov<2' : '未过滤', `种子 ${seed}`
+      ]);
+      if(!genome.length) return h + warnBox('请输入 ACGT 序列。');
+      if(genome.length < k + 1) return h + warnBox(`基因组（${genome.length} bp）比 k+1 还短，请加长序列或调小 k。`);
+      if(eu.complete && eu.spelled === genome){
+        h += okBox(`🎉 <b>完美重建！</b>组装结果与真实基因组完全一致（${genome.length} bp）。` +
+          (err > 0 ? '（在当前错误率下运气不错——多掷几次骰子试试）' : ''));
+      } else {
+        h += diffBox(genome, eu.spelled);
+      }
+      return h;
+    }};
+  });
+  [rlEl, covEl, errEl, kEl].forEach(el => el.addEventListener('input', () => {
+    rlOut.textContent = rlEl.value;
+    covOut.textContent = covEl.value + '×';
+    errOut.textContent = errEl.value + '%';
+    kOut.textContent = kEl.value;
+    w.refresh();
+  }));
+  fEl.addEventListener('change', () => w.refresh());
+  document.getElementById('w2-resim').addEventListener('click', () => {
+    seed = Math.floor(Math.random() * 1e9);
+    w.refresh();
+  });
+  rlOut.textContent = rlEl.value; covOut.textContent = covEl.value + '×';
+  errOut.textContent = errEl.value + '%'; kOut.textContent = kEl.value;
+})();
+
+/* ================= section 4 widget ================= */
+(function(){
+  const pEl = document.getElementById('w3-preset');
+  const kEl = document.getElementById('w3-k');
+  const kOut = document.getElementById('w3-kv');
+  const w = createWidget('w3', function(){
+    const seq = sanitizeSeq(pEl.value);
+    const k = +kEl.value;
+    kOut.textContent = k;
+    if(seq.length < k + 1) return {g:emptyGraph(k), footer:() => warnBox('k 太大：序列长度至少需要 k+1，请调小 k。')};
+    const g = buildGraph([seq], k);
+    return {g, svgOpts:{nodeClassFn:nodeClsEnds}, footer:function(eu){
+      const branches = [...g.nodes.values()].filter(n => classifyNode(n) === 'branch');
+      let h = chips([`序列 ${seq.length} bp`, `k=${k}`, `分支节点 ${branches.length}`, `重复长度 vs k：${branches.length ? '重复 ≥ k → 折叠' : 'k > 重复 → 分开'}`]);
+      if(branches.length){
+        h += warnBox(`⚠ <b>${branches.length}</b> 个分支节点（${branches.slice(0,3).map(n => '<code>' + n.seq + '</code> 入' + n.inn + '/出' + n.out).join('、')}）。` +
+          `重复副本被合并进同一批节点/边，欧拉路径不唯一——组装器在这里可能拼出<b>嵌合序列</b>（把 A 副本的后半段接到 B 副本上）。<br>` +
+          `<span class="muted">试着增大 k，直到分支消失——k 必须大于重复长度。</span>`);
+      } else {
+        h += okBox(`✓ 无分支：k 大于重复长度，两个副本在图中已完全分离，路径唯一。` +
+          `<span class="muted">但别把 k 无限调大——回到第 3 节把 k 调大试试，覆盖不够时图会断裂。</span>`);
+      }
+      return h;
+    }};
+  });
+  pEl.addEventListener('change', w.refresh);
+  kEl.addEventListener('input', w.refresh);
+})();
+
+/* ================= section 5 widget (A-Bruijn) ================= */
+(function(){
+  const gEl = document.getElementById('w4-genome');
+  const kEl = document.getElementById('w4-k');
+  const dEl = document.getElementById('w4-d');
+  const kOut = document.getElementById('w4-kv');
+  const dOut = document.getElementById('w4-dv');
+  const w = createWidget('w4', function(){
+    const seq = sanitizeSeq(gEl.value);
+    const k = +kEl.value, d = +dEl.value;
+    kOut.textContent = k; dOut.textContent = d;
+    if(seq.length < k + 1) return {g:emptyGraph(k), footer:() => warnBox('序列太短：长度至少需要 k+1。')};
+    const g = buildABruijn(seq, k, d);
+    const g0 = buildABruijn(seq, k, 0);
+    const selfLoops = g.edges.filter(e => e.from === e.to).length;
+    const branches = [...g.nodes.values()].filter(n => classifyNode(n) === 'branch').length;
+    const branches0 = [...g0.nodes.values()].filter(n => classifyNode(n) === 'branch').length;
+    return {g, svgOpts:{
+      nodeClassFn:nodeClsEnds,
+      nodeSubFn:n => n.cov > 1 ? '×' + n.cov + '类' : '',
+      tipFn:n => `等价类代表: ${n.seq}\n合并了 ${n.cov} 个位置 k-mer\n成员起点位置: ${n.members.slice(0,10).join(', ')}${n.members.length > 10 ? '…' : ''}`,
+      edgeLabelFn:e => e.label + (e.cov > 1 ? ' ×' + e.cov : '')
+    }, footer:function(eu, spelled){
+      let h = chips([
+        `位置 k-mer ${g.nKmers} 个`, `合并后节点 ${g.nClasses} 个（d=0 时 ${g0.nClasses}）`,
+        `分支节点 ${branches}（d=0 时 ${branches0}）`,
+        `突变 k-mer 合并对 ${g.similarPairs}`
+      ]);
+      if(d === 0){
+        h += noteBox(`<span class="pill">d = 0</span> 只有完全相同的 k-mer 被合并——<b>这正是标准 de Bruijn 图</b>（A-Bruijn 图的特例）。` +
+          `注意两个突变副本形成"气泡"：在分支节点处分叉、又在下游汇聚（黄色节点），侧翼 k-mer 覆盖 ×2（重复的图上信号）。`);
+      } else {
+        const pairs = g.gluedPairs.filter(p => p.dist > 0).slice(0, 5)
+          .map(p => `<code>${p.a}</code>↔<code>${p.b}</code>(差${p.dist})`).join('、');
+        h += noteBox(`<span class="pill">d = ${d}</span> 合并了 ${g.similarPairs} 对互不相同的 k-mer：${pairs}${g.gluedPairs.filter(p=>p.dist>0).length > 5 ? '…' : ''}`);
+        if(g.similarPairs > 0 && branches < branches0){
+          h += okBox(`✓ <b>气泡塌缩！</b>突变重复的两个副本被折叠成一条<b>共识路径</b>（分支 ${branches0} → ${branches}）。` +
+            `这就是 A-Bruijn 图组装/分类重复家族的核心思想（Pevzner & Tang, PNAS 2004）——把"相似但不同"的重复拷贝视为同一个家族成员。`);
+        }
+        if(selfLoops > 0){
+          h += warnBox(`⚠ 检测到 <b>${selfLoops}</b> 个自环：相邻甚至不同区域的 k-mer 也被并成了同一类（<b>过度折叠</b>）。` +
+            `悬停节点查看每个类合并了哪些位置——这些假连接会让欧拉路径拼出嵌合序列。` +
+            `真实工具用序列比对（容忍 indel）+ 比对打分/显著性检验来确定合并，而不是简单距离阈值。`);
+        }
+      }
+      h += `<div class="muted">节点下标 ×N = 该等价类合并的位置 k-mer 数；边 ×N = 该连接在基因组中出现的次数（重复拷贝数的线索）。</div>`;
+      return h;
+    }};
+  });
+  gEl.addEventListener('input', w.refresh);
+  kEl.addEventListener('input', w.refresh);
+  dEl.addEventListener('input', w.refresh);
+})();
+
+/* ================= section 6: Hamiltonian vs Euler ================= */
+(function(){
+  function permutations(arr){
+    if(arr.length <= 1) return [arr.slice()];
+    const out = [];
+    for(let i = 0; i < arr.length; i++){
+      const rest = arr.slice(0, i).concat(arr.slice(i + 1));
+      for(const p of permutations(rest)) out.push([arr[i]].concat(p));
+    }
+    return out;
+  }
+  const GENOME = 'ATGGCGATCCGTA', MIN_OV = 4, KB = 5;
+  const BASE_READS = ['ATGGCG', 'GGCGAT', 'GCGATC', 'GATCCG', 'TCCGTA'];
+  const dupEl = document.getElementById('w5-dup');
+  function getReads(){
+    const r = BASE_READS.slice();
+    if(dupEl.checked) r.push(BASE_READS[2]);
+    return r;
+  }
+
+  /* ---------- 右侧：欧拉路径（复用 createWidget） ---------- */
+  const Rw = createWidget('w5-right', function(){
+    const reads = getReads();
+    const g = buildGraph(reads, KB);
+    return {g, walkOpts:{once:true}, svgOpts:{nodeClassFn:nodeClsEnds}, footer:function(eu){
+      let h = chips([
+        `reads ${reads.length} 条`, `k=${KB}`, `不同 k-mer 边 ${g.edges.length} 条`,
+        `欧拉路径共 ${eu.edgeSeq.length} 步`
+      ]);
+      if(eu.complete && eu.spelled === GENOME){
+        h += okBox(`✓ Hierholzer 沿欧拉路径 <b>${eu.edgeSeq.length} 步</b>拼出完整基因组（${GENOME.length} bp）。` +
+          `复杂度 O(E)，线性于总碱基量；重复 read 只让覆盖度 ×2，<b>不增加任何搜索空间</b>。`);
+      } else {
+        h += warnBox('意外：欧拉路径没有复现基因组（这不该发生）。');
+      }
+      return h;
+    }};
+  });
+
+  /* ---------- 左侧：哈密顿路径暴力枚举 ---------- */
+  const leftRoot = document.getElementById('w5-left');
+  const lSvg = leftRoot.querySelector('.svg-wrap');
+  const lOut = leftRoot.querySelector('.viz-out');
+  const lPlay = leftRoot.querySelector('.act-play');
+  const lJump = leftRoot.querySelector('.act-jump');
+  const lEnd = leftRoot.querySelector('.act-end');
+  const lSpeed = leftRoot.querySelector('.speed');
+  const S = {attempts:[], g:null, reads:[], validPaths:[], idx:-1, playing:false, timer:null};
+
+  function stopPlay(){
+    S.playing = false;
+    if(S.timer){ clearInterval(S.timer); S.timer = null; }
+    lPlay.textContent = '▶ 暴力搜索';
+  }
+  function nodeCls(cur){
+    return n => {
+      if(!cur) return nodeClsEnds(n);
+      const pos = cur.order.indexOf(n.key);
+      if(pos < 0) return 'n-path';
+      if(cur.ok) return 'n-ham';
+      if(pos < cur.breakIdx) return 'n-ham';
+      if(pos === cur.breakIdx) return 'n-fail';
+      return 'n-path';
+    };
+  }
+  function renderAt(i){
+    const g = S.g, reads = S.reads;
+    const cur = i >= 0 && i < S.attempts.length ? S.attempts[i] : null;
+    lSvg.innerHTML = renderGraphSVG(g, {
+      nodeClassFn: nodeCls(cur),
+      visited: cur ? new Set(cur.edgePath) : new Set(),
+      tipFn: n => `read #${n.key + 1}: ${n.seq}${n.dup ? '（重复拷贝）' : ''}\n入边 ${n.inE} / 出边 ${n.outE}`,
+      edgeTipFn: e => `read "${S.reads[e.from]}" 的后 ${e.ov} bp 与\nread "${S.reads[e.to]}" 的前 ${e.ov} bp 相同\n（重叠 ≥ ${MIN_OV} bp 才连边）`
+    });
+    let h = '';
+    if(!cur){
+      h += chips([
+        `reads ${reads.length} 条`, `节点 ${g.nodes.size} 个`, `排列总数 ${reads.length}! = ${S.attempts.length}`,
+        `已知有效哈密顿路径 ${S.validPaths.length} 条`
+      ]);
+      h += noteBox('哈密顿路径 = 依次访问<b>每条 read</b> 恰好一次，相邻 read 重叠 ≥ ' + MIN_OV + ' bp。' +
+        '没有度数这类局部条件可用——只能一个排列一个排列地试（动画是搜索过程的慢放，排列已预计算）。点"▶ 暴力搜索"开始。');
+    } else {
+      const chain = cur.order.map(k => reads[k]).join(' → ');
+      h += `<div class="spell">排列 <b>${i + 1}</b>/${S.attempts.length}：<code>${escHtml(chain)}</code></div>`;
+      if(cur.ok){
+        h += okBox(`✓ 有效哈密顿路径！拼出：${escHtml(spellFromOrder(reads, cur.order, MIN_OV))}`);
+      } else {
+        const prev = reads[cur.order[cur.breakIdx - 1]];
+        const bad = reads[cur.order[cur.breakIdx]];
+        h += warnBox(`✗ 第 ${cur.breakIdx} 对 read 无重叠（需 ≥${MIN_OV} bp）：<code>${escHtml(prev)}</code> ⤏ <code>${escHtml(bad)}</code> —— 回溯，换下一个排列`);
+      }
+      if(i === S.attempts.length - 1){
+        h += `<div class="box ${S.validPaths.length ? 'ok' : 'warn'}">🏁 搜索完毕：共尝试 <b>${S.attempts.length}</b> 个排列，找到 <b>${S.validPaths.length}</b> 条有效哈密顿路径：` +
+          S.validPaths.map(p => `<div><code>${escHtml(spellFromOrder(reads, p, MIN_OV))}</code> <span class="muted">（${p.map(k => reads[k]).join(' → ')}）</span></div>`).join('') +
+          (S.validPaths.length > 1 ? '<b>重复 read 造成歧义——两条路径拼出同一基因组，但搜索空间翻倍；而欧拉模型里这只是覆盖度 ×2。</b>' : '') +
+          `</div>`;
+      }
+    }
+    lOut.innerHTML = h;
+  }
+  function rebuild(){
+    stopPlay();
+    const reads = getReads();
+    const g = buildOverlapGraph(reads, MIN_OV);
+    const eIdx = new Map();
+    g.edges.forEach((e, i) => eIdx.set(e.from + '>' + e.to, i));
+    const permOrder = reads.length === BASE_READS.length ? [2, 4, 0, 3, 1] : [2, 4, 0, 3, 1, 5];
+    const attempts = permutations(permOrder).map(order => {
+      const edgePath = [];
+      for(let i = 1; i < order.length; i++){
+        const ei = eIdx.get(order[i-1] + '>' + order[i]);
+        if(ei === undefined) return {order, ok:false, breakIdx:i, edgePath};
+        edgePath.push(ei);
+      }
+      return {order, ok:true, breakIdx:-1, edgePath};
+    });
+    S.reads = reads; S.g = g; S.attempts = attempts; S.idx = -1;
+    S.validPaths = hamiltonianPaths(g);
+    renderAt(-1);
+  }
+  function tick(){
+    S.idx++;
+    if(S.idx >= S.attempts.length){ stopPlay(); return; }
+    renderAt(S.idx);
+    if(S.idx === S.attempts.length - 1) stopPlay();
+  }
+  lPlay.addEventListener('click', () => {
+    if(S.playing){ stopPlay(); return; }
+    if(S.idx >= S.attempts.length - 1) S.idx = -1;
+    S.playing = true;
+    lPlay.textContent = '⏸ 暂停';
+    S.timer = setInterval(tick, Math.max(15, Math.round(500 / +lSpeed.value)));
+    tick();
+  });
+  lJump.addEventListener('click', () => {
+    stopPlay();
+    S.idx = S.attempts.findIndex(a => a.ok);
+    renderAt(S.idx);
+  });
+  lEnd.addEventListener('click', () => {
+    stopPlay();
+    S.idx = S.attempts.length - 1;
+    renderAt(S.idx);
+  });
+  lSpeed.addEventListener('input', () => {
+    if(S.playing){
+      clearInterval(S.timer);
+      S.timer = setInterval(tick, Math.max(15, Math.round(500 / +lSpeed.value)));
+    }
+  });
+  dupEl.addEventListener('change', () => { rebuild(); Rw.refresh(); });
+  rebuild();
+})();
+
+/* ================= quiz ================= */
+(function(){
+  const QUIZ = [
+    {q:'在"边视角"的 de Bruijn 图中，一条边代表什么？',
+     opts:['一个 k-mer','一个 (k−1)-mer','一整条 read','一个测序错误'], a:0,
+     ex:'节点是 (k−1)-mer，边是 k-mer。欧拉路径把每条边走一次，每走一步追加该 k-mer 的最后一个字符，最终拼出基因组。'},
+    {q:'测序错误（单碱基替换）在 de Bruijn 图中最典型的表现是？',
+     opts:['形成欧拉回路','让图变成完全图','低覆盖度的死端 tip','所有节点度数变为 1'], a:2,
+     ex:'错误产生的 k-mer 只出现一两次且无法延续，形成低覆盖死胡同（本页第 3 节的红色节点）。真实组装器据此做 tip 修剪 / 低覆盖过滤。'},
+    {q:'k 选得太小，最主要的后果是？',
+     opts:['图一定不连通','重复副本被合并，欧拉路径不唯一，可能产生嵌合组装','碱基会丢失','测序错误会自动消失'], a:1,
+     ex:'k 小 → 相同 k-mer 多 → 重复被折叠成分支（第 4 节）。k 大则区分重复能力强，但需要更高覆盖度与更长 reads，否则图断裂。'},
+    {q:'A-Bruijn 图与 de Bruijn 图的关键区别是？',
+     opts:['A-Bruijn 是无向图','A-Bruijn 允许按"相似性"合并位置 k-mer，de Bruijn 只合并完全相同的 k-mer','A-Bruijn 不需要找欧拉路径','A-Bruijn 只能用于蛋白质序列'], a:1,
+     ex:'A-Bruijn（Pevzner & Tang 2004）把合并规则泛化为任意等价关系 ξ（典型是基于比对的相似性）；ξ 取"完全相同"时它就是 de Bruijn 图。'},
+    {q:'把每条 read 当作图的一个节点、read 间的重叠当作边（OLC 重叠图）时，"拼出基因组"对应寻找哪种路径？',
+     opts:['欧拉路径——O(E) 高效求解','哈密顿路径——判定问题是 NP-complete','欧拉路径——但属于 NP-hard','哈密顿路径——存在线性时间算法'], a:1,
+     ex:'重叠图中每条 read 恰好"访问"一次 = 哈密顿路径（NP-complete，Karp 1972）。de Bruijn 图把 k-mer 放到边上、(k−1)-mer 作节点，组装变成欧拉路径（Hierholzer，O(E)）——换一种图的表示，问题难度就发生了质变（第 6 节有交互演示）。'}
+  ];
+  const root = document.getElementById('quiz');
+  let score = 0, answered = 0;
+  root.innerHTML = QUIZ.map((item, qi) => `
+    <div class="qcard" data-qi="${qi}">
+      <div class="qtitle">${qi + 1}. ${escHtml(item.q)}</div>
+      <div class="qopts">${item.opts.map((o, oi) => `<button class="qopt" data-oi="${oi}">${'ABCD'[oi]}. ${escHtml(o)}</button>`).join('')}</div>
+      <div class="qex" style="display:none"></div>
+    </div>`).join('') + '<div class="qscore" id="qscore">得分：0 / ' + QUIZ.length + '</div>';
+  root.querySelectorAll('.qopt').forEach(btn => btn.addEventListener('click', () => {
+    const card = btn.closest('.qcard');
+    if(card.dataset.done) return;
+    card.dataset.done = '1';
+    const item = QUIZ[+card.dataset.qi];
+    const oi = +btn.dataset.oi;
+    answered++;
+    card.querySelectorAll('.qopt').forEach(b => { if(+b.dataset.oi === item.a) b.classList.add('correct'); });
+    if(oi === item.a){ score++; btn.classList.add('picked-ok'); } else { btn.classList.add('picked-bad'); }
+    const ex = card.querySelector('.qex');
+    ex.style.display = 'block';
+    ex.innerHTML = (oi === item.a ? '✅ 答对了！ ' : '❌ 再想想～ 正确答案已用绿色标出。 ') + escHtml(item.ex);
+    document.getElementById('qscore').textContent = `得分：${score} / ${QUIZ.length}` + (answered === QUIZ.length ? (score === QUIZ.length ? ' 🏆 满分！' : ' —— 到对应章节再玩一遍演示吧') : '');
+  }));
+})();
+
+/* ================= tooltip ================= */
+(function(){
+  const tt = document.getElementById('tt');
+  document.addEventListener('mouseover', e => {
+    const t = e.target.closest ? e.target.closest('[data-tip]') : null;
+    if(t){ tt.textContent = t.getAttribute('data-tip'); tt.style.display = 'block'; }
+  });
+  document.addEventListener('mousemove', e => {
+    if(tt.style.display === 'block'){
+      tt.style.left = Math.min(e.clientX + 14, window.innerWidth - tt.offsetWidth - 12) + 'px';
+      tt.style.top = (e.clientY + 18) + 'px';
+    }
+  });
+  document.addEventListener('mouseout', e => {
+    const from = e.target.closest ? e.target.closest('[data-tip]') : null;
+    const to = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('[data-tip]') : null;
+    if(from && !to) tt.style.display = 'none';
+  });
+})();
+
+/* ================= toc highlight ================= */
+(function(){
+  const links = [...document.querySelectorAll('#toc a')];
+  const obs = new IntersectionObserver(es => {
+    es.forEach(en => {
+      if(en.isIntersecting){
+        links.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + en.target.id));
+      }
+    });
+  }, {rootMargin:'-25% 0px -60% 0px'});
+  document.querySelectorAll('section.card').forEach(s => obs.observe(s));
+})();
+</script>
+</body>
+</html>
